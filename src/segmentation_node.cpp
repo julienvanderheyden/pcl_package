@@ -30,24 +30,24 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     pcl::PassThrough<pcl::PointXYZRGB> pass_z;
     pass_z.setInputCloud(voxel_filtered);
     pass_z.setFilterFieldName("z");
-    pass_z.setFilterLimits(0.3, 1.0);  // meters - TUNE to your camera-to-table distance
+    pass_z.setFilterLimits(0.3, 1.0);  //meters 
     pass_z.filter(*z_filtered);
 
     ROS_INFO("After Z passthrough: %lu points", z_filtered->points.size());
 
-    // // X axis (lateral) - keep only the reachable workspace width
-    // pcl::PointCloud<pcl::PointXYZRGB>::Ptr x_filtered(new pcl::PointCloud<pcl::PointXYZRGB>);
-    // pcl::PassThrough<pcl::PointXYZRGB> pass_x;
-    // pass_x.setInputCloud(z_filtered);
-    // pass_x.setFilterFieldName("x");
-    // pass_x.setFilterLimits(-0.4, 0.4);  
-    // pass_x.filter(*x_filtered);
+    // X axis (lateral) - keep only the reachable workspace width
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr x_filtered(new pcl::PointCloud<pcl::PointXYZRGB>);
+    pcl::PassThrough<pcl::PointXYZRGB> pass_x;
+    pass_x.setInputCloud(z_filtered);
+    pass_x.setFilterFieldName("x");
+    pass_x.setFilterLimits(-0.3, 0.3);  //meters
+    pass_x.filter(*x_filtered);
 
     // ROS_INFO("After X passthrough: %lu points", x_filtered->points.size());
 
     // Convert back to ROS PointCloud2 and publish
     sensor_msgs::PointCloud2 output_msg;
-    pcl::toROSMsg(*z_filtered, output_msg);
+    pcl::toROSMsg(*x_filtered, output_msg);
     output_msg.header = msg->header;
 
     pub.publish(output_msg);
