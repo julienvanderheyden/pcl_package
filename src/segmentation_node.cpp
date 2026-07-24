@@ -35,7 +35,7 @@ int main(int argc, char** argv) {
 	ros::init(argc, argv, "segmentation_node");
 	ros::NodeHandle nh;
 	
-	ros::Subscriber sub = nh.subscribe("/camera/depth/color/points", 1, cloudCallBack);
+	ros::Subscriber sub = nh.subscribe("/camera/depth/color/points", 1, cloudCallback);
 	pub = nh.advertise<sensor_msgs::PointCloud2>("/segmentation/object_point_cloud", 1);
 	
 	ros::spin();
