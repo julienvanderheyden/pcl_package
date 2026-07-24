@@ -10,7 +10,7 @@ void cloudCallBack(const sensor_msgs::PointCloud2ConstPtr& msg) {
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 	pcl::fromROSMsg(*msg, *pcl_cloud);
 	
-	ROS_INFO("Converted cloud with %lu points", pcl_cloud->points.size());
+	ROS_INFO("Converted point cloud with %lu points", pcl_cloud->points.size());
 
 	sensor_msgs::PointCloud2 output_msg;
 	pcl::toROSMsg(*pcl_cloud, output_msg);
