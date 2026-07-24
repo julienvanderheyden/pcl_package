@@ -1,9 +1,10 @@
-#include <ros/ros.h> 
+#include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/filters/passthrough.h>
 
 ros::Publisher pub;
 
@@ -14,18 +15,39 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
 
     ROS_INFO("Input cloud: %lu points", pcl_cloud->points.size());
 
-    // Voxel grid downsampling
+    // --- Voxel grid downsampling ---
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr voxel_filtered(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::VoxelGrid<pcl::PointXYZRGB> voxel_filter;
     voxel_filter.setInputCloud(pcl_cloud);
-    voxel_filter.setLeafSize(0.01f, 0.01f, 0.01f);  // 5mm leaf size - tune for your objects
+    voxel_filter.setLeafSize(0.005f, 0.005f, 0.005f);
     voxel_filter.filter(*voxel_filtered);
 
     ROS_INFO("After voxel filtering: %lu points", voxel_filtered->points.size());
 
+    // --- Passthrough filtering: crop to workspace region ---
+    // Z axis (depth from camera) - keep only the range where your workspace/table sits
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr z_filtered(new pcl::PointCloud<pcl::PointXYZRGB>);
+    pcl::PassThrough<pcl::PointXYZRGB> pass_z;
+    pass_z.setInputCloud(voxel_filtered);
+    pass_z.setFilterFieldName("z");
+    pass_z.setFilterLimits(0.3, 1.0);  // meters - TUNE to your camera-to-table distance
+    pass_z.filter(*z_filtered);
+
+    ROS_INFO("After Z passthrough: %lu points", z_filtered->points.size());
+
+    // // X axis (lateral) - keep only the reachable workspace width
+    // pcl::PointCloud<pcl::PointXYZRGB>::Ptr x_filtered(new pcl::PointCloud<pcl::PointXYZRGB>);
+    // pcl::PassThrough<pcl::PointXYZRGB> pass_x;
+    // pass_x.setInputCloud(z_filtered);
+    // pass_x.setFilterFieldName("x");
+    // pass_x.setFilterLimits(-0.4, 0.4);  
+    // pass_x.filter(*x_filtered);
+
+    // ROS_INFO("After X passthrough: %lu points", x_filtered->points.size());
+
     // Convert back to ROS PointCloud2 and publish
     sensor_msgs::PointCloud2 output_msg;
-    pcl::toROSMsg(*voxel_filtered, output_msg);
+    pcl::toROSMsg(*z_filtered, output_msg);
     output_msg.header = msg->header;
 
     pub.publish(output_msg);
