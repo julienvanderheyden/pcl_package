@@ -3,8 +3,14 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/passthrough.h>
+
+#include <pcl/filters/extract_indices.h>
+#include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/sample_consensus/method_types.h>
+#include <pcl/sample_consensus/model_types.h>
 
 ros::Publisher pub;
 
@@ -33,8 +39,6 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     pass_z.setFilterLimits(0.3, 1.0);  //meters 
     pass_z.filter(*z_filtered);
 
-    ROS_INFO("After Z passthrough: %lu points", z_filtered->points.size());
-
     // X axis (lateral) - keep only the reachable workspace width
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr x_filtered(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::PassThrough<pcl::PointXYZRGB> pass_x;
@@ -43,11 +47,40 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     pass_x.setFilterLimits(-0.3, 0.3);  //meters
     pass_x.filter(*x_filtered);
 
-	ROS_INFO("After X passthrough: %lu points", x_filtered->points.size());
+	ROS_INFO("After passthrough: %lu points", x_filtered->points.size());
+
+	// --- RANSAC plane segmentation: find the table ---
+    pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+    pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+
+    pcl::SACSegmentation<pcl::PointXYZRGB> seg;
+    seg.setOptimizeCoefficients(true);
+    seg.setModelType(pcl::SACMODEL_PLANE);
+    seg.setMethodType(pcl::SAC_RANSAC);
+    seg.setDistanceThreshold(0.005);  // how close a point must be to count as "on the plane"
+    seg.setInputCloud(x_filtered);
+    seg.segment(*inliers, *coefficients);
+
+    if (inliers->indices.empty()) {
+        ROS_WARN("Could not estimate a planar model for the given cloud.");
+        return;
+    }
+
+    // ROS_INFO("Plane found with %lu inlier points (table)", inliers->indices.size());
+
+    // --- Extract the outliers (everything NOT the table = objects) ---
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr objects_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+    pcl::ExtractIndices<pcl::PointXYZRGB> extract;
+    extract.setInputCloud(x_filtered);
+    extract.setIndices(inliers);
+    extract.setNegative(true);  // true = keep everything EXCEPT the plane inliers
+    extract.filter(*objects_cloud);
+
+    ROS_INFO("After plane removal: %lu points remain (objects)", objects_cloud->points.size());
 
     // Convert back to ROS PointCloud2 and publish
     sensor_msgs::PointCloud2 output_msg;
-    pcl::toROSMsg(*x_filtered, output_msg);
+    pcl::toROSMsg(*objects_cloud, output_msg);
     output_msg.header = msg->header;
 
     pub.publish(output_msg);
