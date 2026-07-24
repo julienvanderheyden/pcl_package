@@ -18,7 +18,7 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr voxel_filtered(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::VoxelGrid<pcl::PointXYZRGB> voxel_filter;
     voxel_filter.setInputCloud(pcl_cloud);
-    voxel_filter.setLeafSize(0.005f, 0.005f, 0.005f);  // 5mm leaf size - tune for your objects
+    voxel_filter.setLeafSize(0.01f, 0.01f, 0.01f);  // 5mm leaf size - tune for your objects
     voxel_filter.filter(*voxel_filtered);
 
     ROS_INFO("After voxel filtering: %lu points", voxel_filtered->points.size());
