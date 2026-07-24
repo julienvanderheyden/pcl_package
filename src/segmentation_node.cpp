@@ -43,7 +43,7 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     pass_x.setFilterLimits(-0.3, 0.3);  //meters
     pass_x.filter(*x_filtered);
 
-    // ROS_INFO("After X passthrough: %lu points", x_filtered->points.size());
+	ROS_INFO("After X passthrough: %lu points", x_filtered->points.size());
 
     // Convert back to ROS PointCloud2 and publish
     sensor_msgs::PointCloud2 output_msg;
