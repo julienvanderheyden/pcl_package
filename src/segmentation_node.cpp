@@ -15,14 +15,14 @@
 #include <pcl/segmentation/extract_clusters.h>
 #include <pcl/search/kdtree.h>
 
-ros::Publisher pub;
+ros::Publisher colored_pcl_pub;
+ros::Publisher object_pcl_pub;
 
 void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
-	ros::WallTime t_start = ros::WallTime::now();
+
     // Convert ROS PointCloud2 -> PCL point cloud
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::fromROSMsg(*msg, *pcl_cloud);
-	ros::WallTime t_convert = ros::WallTime::now();
 
     ROS_INFO("Input cloud: %lu points", pcl_cloud->points.size());
 
@@ -43,7 +43,6 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     pass_x.setFilterLimits(-0.3, 0.3);  //meters
     pass_x.filter(*x_filtered);
 
-	ros::WallTime t_passthrough = ros::WallTime::now();
 	ROS_INFO("After passthrough: %lu points", x_filtered->points.size());
 
 	// --- Voxel grid downsampling ---
@@ -53,7 +52,6 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     voxel_filter.setLeafSize(0.0025f, 0.0025f, 0.0025f);
     voxel_filter.filter(*voxel_filtered);
 
-	ros::WallTime t_voxel = ros::WallTime::now();
     ROS_INFO("After voxel filtering: %lu points", voxel_filtered->points.size());
 
 	// --- RANSAC plane segmentation: find the table ---
@@ -73,8 +71,6 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
         return;
     }
 
-    // ROS_INFO("Plane found with %lu inlier points (table)", inliers->indices.size());
-
     // --- Extract the outliers (everything NOT the table = objects) ---
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr objects_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::ExtractIndices<pcl::PointXYZRGB> extract;
@@ -83,7 +79,6 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     extract.setNegative(true);  // true = keep everything EXCEPT the plane inliers
     extract.filter(*objects_cloud);
 
-	ros::WallTime t_ransac = ros::WallTime::now();
     ROS_INFO("After plane removal: %lu points remain (objects)", objects_cloud->points.size());
 
 	// --- Euclidean cluster extraction ---
@@ -99,58 +94,66 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     ec.setInputCloud(objects_cloud);
     ec.extract(cluster_indices);
 
-	ros::WallTime t_cluster = ros::WallTime::now();
     ROS_INFO("Found %lu clusters", cluster_indices.size());
 
     // --- Build a colored output cloud: one distinct color per cluster ---
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_clusters(new pcl::PointCloud<pcl::PointXYZRGB>);
 
-    // A small palette of visually distinct colors, cycled if there are more clusters than colors
     std::vector<std::array<uint8_t, 3>> palette = {
         {230, 25, 75},   {60, 180, 75},   {255, 225, 25},  {0, 130, 200},
-        {245, 130, 48},  {145, 30, 180},  {70, 240, 240},  {240, 50, 230},
-        {210, 245, 60},  {250, 190, 212}
+        {245, 130, 48},  {145, 30, 180},  {70, 240, 240},  {240, 50, 230}
     };
 
-    int cluster_id = 0;
-    for (const auto& indices : cluster_indices) {
-        const auto& color = palette[cluster_id % palette.size()];
+	size_t total_clustered_points = 0;
+	for (const auto& indices : cluster_indices) total_clustered_points += indices.indices.size();
+	colored_clusters->points.reserve(total_clustered_points);
 
-        for (int idx : indices.indices) {
-            pcl::PointXYZRGB point = objects_cloud->points[idx];
-            point.r = color[0];
-            point.g = color[1];
-            point.b = color[2];
-            colored_clusters->points.push_back(point);
-        }
+	size_t largest_idx = 0;
+	size_t largest_size = 0;
+	int cluster_id = 0;
 
-		// ROS_INFO("  Cluster %d: %lu points, color (%d,%d,%d)",
-        //           cluster_id, indices.indices.size(), color[0], color[1], color[2]);
+	for (const auto& indices : cluster_indices) {
+		const auto& color = palette[cluster_id % palette.size()];
 
-        cluster_id++;
-    }
+		for (int idx : indices.indices) {
+			pcl::PointXYZRGB point = objects_cloud->points[idx];
+			point.r = color[0];
+			point.g = color[1];
+			point.b = color[2];
+			colored_clusters->points.push_back(point);
+		}
 
-    colored_clusters->width = colored_clusters->points.size();
-    colored_clusters->height = 1;
-    colored_clusters->is_dense = true;
+		if (indices.indices.size() > largest_size) {
+			largest_size = indices.indices.size();
+			largest_idx = cluster_id;
+		}
 
+		cluster_id++;
+	}
+	colored_clusters->width = colored_clusters->points.size();
+	colored_clusters->height = 1;
+	colored_clusters->is_dense = true;
+
+	// --- Build the largest-cluster cloud ---
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr largest_cluster(new pcl::PointCloud<pcl::PointXYZRGB>);
+	largest_cluster->points.reserve(largest_size);
+	for (int idx : cluster_indices[largest_idx].indices) {
+		largest_cluster->points.push_back(objects_cloud->points[idx]);
+	}
+	largest_cluster->width = largest_cluster->points.size();
+	largest_cluster->height = 1;
+	largest_cluster->is_dense = true;
 
     // Convert back to ROS PointCloud2 and publish
     sensor_msgs::PointCloud2 output_msg;
     pcl::toROSMsg(*colored_clusters, output_msg);
     output_msg.header = msg->header;
-	ros::WallTime t_end = ros::WallTime::now();
+    colored_pcl_pub.publish(output_msg);
 
-	ROS_INFO("convert: %.1fms | passthrough: %.1fms | voxel: %.1fms | ransac: %.1fms | cluster: %.1fms | color: %.1fms | total: %.1fms",
-        (t_convert - t_start).toSec() * 1000,
-        (t_passthrough - t_convert).toSec() * 1000,
-        (t_voxel - t_passthrough).toSec() * 1000,
-        (t_ransac - t_voxel).toSec() * 1000,
-        (t_cluster - t_ransac).toSec() * 1000,
-        (t_end - t_cluster).toSec() * 1000,
-        (t_end - t_start).toSec() * 1000);
-
-    pub.publish(output_msg);
+	sensor_msgs::PointCloud2 largest_msg;
+	pcl::toROSMsg(*largest_cluster, largest_msg);
+	largest_msg.header = msg->header;
+	object_pcl_pub.publish(largest_msg);
 }
 
 int main(int argc, char** argv) {
@@ -158,7 +161,8 @@ int main(int argc, char** argv) {
 	ros::NodeHandle nh;
 	
 	ros::Subscriber sub = nh.subscribe("/camera/depth/color/points", 1, cloudCallback);
-	pub = nh.advertise<sensor_msgs::PointCloud2>("/segmentation/object_point_cloud", 1);
+	colored_pcl_pub = nh.advertise<sensor_msgs::PointCloud2>("/segmentation/colored_point_cloud", 1);
+	object_pcl_pub = nh.advertise<sensor_msgs::PointCloud2>("/segmentation/object_point_cloud", 1);
 	
 	ros::spin();
 	return 0;
