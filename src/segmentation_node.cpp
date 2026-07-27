@@ -312,7 +312,7 @@ private:
 		for (const auto& indices : cluster_indices) {
 			const auto& color = palette[cluster_id % palette.size()];
 			for (int idx : indices.indices) {
-				pcl::PointXYZRGB point = objects_downsampled->points[idx];
+				pcl::PointXYZRGB point = objects_cloud->points[idx];
 				point.r = color[0];
 				point.g = color[1];
 				point.b = color[2];
