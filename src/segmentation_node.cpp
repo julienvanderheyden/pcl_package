@@ -22,7 +22,7 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     // Convert ROS PointCloud2 -> PCL point cloud
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::fromROSMsg(*msg, *pcl_cloud);
-	ros::WallTime t_start = ros::WallTime::now();
+	ros::WallTime t_convert = ros::WallTime::now();
 
     ROS_INFO("Input cloud: %lu points", pcl_cloud->points.size());
 
