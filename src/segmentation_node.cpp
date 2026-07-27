@@ -49,7 +49,7 @@ private:
 
 	// --- Color filtering: remove points whose color is close to a given target ---
     void filterByColor(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input,
-                        pcl::PointCloud<pcl::PointXYZRGB>::Ptr& outputd) {
+                        pcl::PointCloud<pcl::PointXYZRGB>::Ptr& output) {
         output->points.clear();
         output->points.reserve(input->points.size());
 
