@@ -23,6 +23,7 @@ public:
         sub_ = nh.subscribe("/camera/depth/color/points", 1, &SegmentationNode::cloudCallback, this);
         pub_colored_ = nh.advertise<sensor_msgs::PointCloud2>("/segmentation/colored_point_cloud", 1);
         pub_largest_ = nh.advertise<sensor_msgs::PointCloud2>("/segmentation/object_point_cloud", 1);
+		pub_debug_ = nh.advertise<sensor_msgs::PointCloud2>("/segmentation/debug_point_cloud", 1);
     }
 
 private:
@@ -30,7 +31,7 @@ private:
     ros::Subscriber sub_;
     ros::Publisher pub_colored_;
     ros::Publisher pub_largest_;
-
+    ros::Publisher pub_debug_;
 	// Color filter params
 	bool use_color_filter_ = true;
     int stand_r_= 0;
@@ -87,6 +88,10 @@ private:
 			pcl::PointCloud<pcl::PointXYZRGB>::Ptr color_filtered(new pcl::PointCloud<pcl::PointXYZRGB>);
 			filterByColor(cloud_no_nan, color_filtered);
 			input_for_z_filter = color_filtered;
+			sensor_msgs::PointCloud2 debug_msg;
+			pcl::toROSMsg(*colored_clusters, debug_msg);
+			debug_msg.header = msg->header;
+			pub_debug_.publish(debug_msg);
 		}
 
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr z_filtered(new pcl::PointCloud<pcl::PointXYZRGB>);
