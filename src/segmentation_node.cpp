@@ -118,6 +118,9 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
             colored_clusters->points.push_back(point);
         }
 
+		ROS_INFO("  Cluster %d: %lu points, color (%d,%d,%d)",
+                  cluster_id, indices.indices.size(), color[0], color[1], color[2]);
+
         cluster_id++;
     }
 
