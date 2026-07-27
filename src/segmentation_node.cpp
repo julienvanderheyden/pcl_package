@@ -30,7 +30,7 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr voxel_filtered(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::VoxelGrid<pcl::PointXYZRGB> voxel_filter;
     voxel_filter.setInputCloud(pcl_cloud);
-    voxel_filter.setLeafSize(0.0025f, 0.0025f, 0.0025f);
+    voxel_filter.setLeafSize(0.005f, 0.005f, 0.005f);
     voxel_filter.filter(*voxel_filtered);
 
 	ros::WallTime t_voxel = ros::WallTime::now();
