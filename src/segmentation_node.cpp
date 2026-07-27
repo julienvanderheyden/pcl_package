@@ -26,28 +26,11 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
 
     ROS_INFO("Input cloud: %lu points", pcl_cloud->points.size());
 
-	// --- Step 0: remove NaN/Inf points FIRST, before anything else ---
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_no_nan(new pcl::PointCloud<pcl::PointXYZRGB>);
-    std::vector<int> nan_indices;
-    pcl::removeNaNFromPointCloud(*pcl_cloud, *cloud_no_nan, nan_indices);
-
-    ROS_INFO("Removed %lu NaN/invalid points", pcl_cloud->points.size() - cloud_no_nan->points.size());
-
-    // --- Voxel grid downsampling ---
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr voxel_filtered(new pcl::PointCloud<pcl::PointXYZRGB>);
-    pcl::VoxelGrid<pcl::PointXYZRGB> voxel_filter;
-    voxel_filter.setInputCloud(pcl_cloud);
-    voxel_filter.setLeafSize(0.004f, 0.004f, 0.004f);
-    voxel_filter.filter(*voxel_filtered);
-
-	ros::WallTime t_voxel = ros::WallTime::now();
-    ROS_INFO("After voxel filtering: %lu points", voxel_filtered->points.size());
-
     // --- Passthrough filtering: crop to workspace region ---
     // Z axis (depth from camera) - keep only the range where your workspace/table sits
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr z_filtered(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::PassThrough<pcl::PointXYZRGB> pass_z;
-    pass_z.setInputCloud(voxel_filtered);
+    pass_z.setInputCloud(pcl_cloud);
     pass_z.setFilterFieldName("z");
     pass_z.setFilterLimits(0.3, 1.0);  //meters 
     pass_z.filter(*z_filtered);
@@ -63,6 +46,16 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
 	ros::WallTime t_passthrough = ros::WallTime::now();
 	ROS_INFO("After passthrough: %lu points", x_filtered->points.size());
 
+	// --- Voxel grid downsampling ---
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr voxel_filtered(new pcl::PointCloud<pcl::PointXYZRGB>);
+    pcl::VoxelGrid<pcl::PointXYZRGB> voxel_filter;
+    voxel_filter.setInputCloud(x_filtered);
+    voxel_filter.setLeafSize(0.004f, 0.004f, 0.004f);
+    voxel_filter.filter(*voxel_filtered);
+
+	ros::WallTime t_voxel = ros::WallTime::now();
+    ROS_INFO("After voxel filtering: %lu points", voxel_filtered->points.size());
+
 	// --- RANSAC plane segmentation: find the table ---
     pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
     pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
@@ -72,7 +65,7 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     seg.setModelType(pcl::SACMODEL_PLANE);
     seg.setMethodType(pcl::SAC_RANSAC);
     seg.setDistanceThreshold(0.0075);  // how close a point must be to count as "on the plane"
-    seg.setInputCloud(x_filtered);
+    seg.setInputCloud(voxel_filtered);
     seg.segment(*inliers, *coefficients);
 
     if (inliers->indices.empty()) {
@@ -85,7 +78,7 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     // --- Extract the outliers (everything NOT the table = objects) ---
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr objects_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::ExtractIndices<pcl::PointXYZRGB> extract;
-    extract.setInputCloud(x_filtered);
+    extract.setInputCloud(voxel_filtered);
     extract.setIndices(inliers);
     extract.setNegative(true);  // true = keep everything EXCEPT the plane inliers
     extract.filter(*objects_cloud);
@@ -148,11 +141,11 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     output_msg.header = msg->header;
 	ros::WallTime t_end = ros::WallTime::now();
 
-	ROS_INFO("convert: %.1fms | voxel: %.1fms | passthrough: %.1fms | ransac: %.1fms | cluster: %.1fms | color: %.1fms | total: %.1fms",
+	ROS_INFO("convert: %.1fms | passthrough: %.1fms | voxel: %.1fms | ransac: %.1fms | cluster: %.1fms | color: %.1fms | total: %.1fms",
         (t_convert - t_start).toSec() * 1000,
-        (t_voxel - t_convert).toSec() * 1000,
-        (t_passthrough - t_voxel).toSec() * 1000,
-        (t_ransac - t_passthrough).toSec() * 1000,
+        (t_passthrough - t_convert).toSec() * 1000,
+        (t_voxel - t_passthrough).toSec() * 1000,
+        (t_ransac - t_voxel).toSec() * 1000,
         (t_cluster - t_ransac).toSec() * 1000,
         (t_end - t_cluster).toSec() * 1000,
         (t_end - t_start).toSec() * 1000);
