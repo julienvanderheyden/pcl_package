@@ -32,7 +32,7 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     pcl::PassThrough<pcl::PointXYZRGB> pass_z;
     pass_z.setInputCloud(pcl_cloud);
     pass_z.setFilterFieldName("z");
-    pass_z.setFilterLimits(0.3, 1.0);  //meters 
+    pass_z.setFilterLimits(0.25, 1.0);  //meters 
     pass_z.filter(*z_filtered);
 
     // X axis (lateral) - keep only the reachable workspace width
