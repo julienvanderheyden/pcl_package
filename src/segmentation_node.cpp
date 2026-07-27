@@ -253,7 +253,7 @@ private:
         seg.setOptimizeCoefficients(true);
         seg.setModelType(pcl::SACMODEL_PLANE);
         seg.setMethodType(pcl::SAC_RANSAC);
-        seg.setDistanceThreshold(0.015);
+        seg.setDistanceThreshold(0.01);
         seg.setInputCloud(voxel_filtered);
         seg.segment(*inliers, *coefficients);
 
