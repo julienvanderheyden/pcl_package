@@ -26,6 +26,13 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
 
     ROS_INFO("Input cloud: %lu points", pcl_cloud->points.size());
 
+	// --- Step 0: remove NaN/Inf points FIRST, before anything else ---
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_no_nan(new pcl::PointCloud<pcl::PointXYZRGB>);
+    std::vector<int> nan_indices;
+    pcl::removeNaNFromPointCloud(*pcl_cloud, *cloud_no_nan, nan_indices);
+
+    ROS_INFO("Removed %lu NaN/invalid points", pcl_cloud->points.size() - cloud_no_nan->points.size());
+
     // --- Voxel grid downsampling ---
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr voxel_filtered(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::VoxelGrid<pcl::PointXYZRGB> voxel_filter;
