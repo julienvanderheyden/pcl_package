@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_ros
   roscpp
   sensor_msgs
+  visualization_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -72,6 +73,7 @@ find_package(catkin REQUIRED COMPONENTS
 # generate_messages(
 #   DEPENDENCIES
 #   sensor_msgs
+#   visualization_msgs
 # )
 
 ################################################
@@ -106,7 +108,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES pcl_package
-#  CATKIN_DEPENDS pcl_conversions pcl_ros roscpp sensor_msgs
+#  CATKIN_DEPENDS pcl_conversions pcl_ros roscpp sensor_msgs visualization_msgs
 #  DEPENDS system_lib
 )
 
@@ -136,6 +138,7 @@ include_directories(
 ## The recommended prefix ensures that target names across packages don't collide
 # add_executable(${PROJECT_NAME}_node src/pcl_package_node.cpp)
 add_executable(segmentation_node src/segmentation_node.cpp)
+add_executable(classification_node src/classification_node.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -152,6 +155,7 @@ add_executable(segmentation_node src/segmentation_node.cpp)
 #   ${catkin_LIBRARIES}
 # )
 target_link_libraries(segmentation_node ${catkin_LIBRARIES})
+target_link_libraries(classification_node ${catkin_LIBRARIES})
 
 #############
 ## Install ##
