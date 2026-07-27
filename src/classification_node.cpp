@@ -92,6 +92,12 @@ private:
             arrow.type = visualization_msgs::Marker::ARROW;
             arrow.action = visualization_msgs::Marker::ADD;
 
+            // Explicitly set identity orientation to avoid the "uninitialized quaternion" warning
+            arrow.pose.orientation.x = 0.0;
+            arrow.pose.orientation.y = 0.0;
+            arrow.pose.orientation.z = 0.0;
+            arrow.pose.orientation.w = 1.0;
+
             geometry_msgs::Point start, end;
             start.x = centroid.x();
             start.y = centroid.y();
