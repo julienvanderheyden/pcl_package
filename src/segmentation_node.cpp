@@ -149,7 +149,7 @@ private:
         std::vector<pcl::PointIndices> cluster_indices;
         pcl::EuclideanClusterExtraction<pcl::PointXYZRGB> ec;
         ec.setClusterTolerance(0.01);
-        ec.setMinClusterSize(500);
+        ec.setMinClusterSize(250);
         ec.setMaxClusterSize(25000);
         ec.setSearchMethod(tree);
         ec.setInputCloud(objects_cloud);
