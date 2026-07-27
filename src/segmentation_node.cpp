@@ -88,7 +88,7 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     std::vector<pcl::PointIndices> cluster_indices;
     pcl::EuclideanClusterExtraction<pcl::PointXYZRGB> ec;
     ec.setClusterTolerance(0.02);   // 2cm - max gap between points in the same cluster
-    ec.setMinClusterSize(30);       // discard clusters smaller than this (likely noise)
+    ec.setMinClusterSize(1000);       // discard clusters smaller than this (likely noise)
     ec.setMaxClusterSize(25000);    // discard implausibly large clusters
     ec.setSearchMethod(tree);
     ec.setInputCloud(objects_cloud);
@@ -118,8 +118,8 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
             colored_clusters->points.push_back(point);
         }
 
-		ROS_INFO("  Cluster %d: %lu points, color (%d,%d,%d)",
-                  cluster_id, indices.indices.size(), color[0], color[1], color[2]);
+		// ROS_INFO("  Cluster %d: %lu points, color (%d,%d,%d)",
+        //           cluster_id, indices.indices.size(), color[0], color[1], color[2]);
 
         cluster_id++;
     }
