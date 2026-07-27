@@ -62,7 +62,7 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     seg.setOptimizeCoefficients(true);
     seg.setModelType(pcl::SACMODEL_PLANE);
     seg.setMethodType(pcl::SAC_RANSAC);
-    seg.setDistanceThreshold(0.01);  // how close a point must be to count as "on the plane"
+    seg.setDistanceThreshold(0.015);  // how close a point must be to count as "on the plane"
     seg.setInputCloud(voxel_filtered);
     seg.segment(*inliers, *coefficients);
 
@@ -78,6 +78,11 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     extract.setIndices(inliers);
     extract.setNegative(true);  // true = keep everything EXCEPT the plane inliers
     extract.filter(*objects_cloud);
+
+	if (objects_cloud->points.empty()) {
+    	//ROS_WARN("No points remain after plane removal");
+    	return;
+	}
 
     //ROS_INFO("After plane removal: %lu points remain (objects)", objects_cloud->points.size());
 
