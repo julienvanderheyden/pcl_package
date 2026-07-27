@@ -36,7 +36,7 @@ private:
     int stand_r_= 0;
 	int stand_g_ = 92 ;
 	int stand_b_ = 255;
-    double color_threshold_ = 30.0;
+    double color_threshold_ = 60.0;
 
     // --- Temporal smoothing state ---
     bool have_confirmed_ = false;
@@ -85,7 +85,7 @@ private:
 		if (use_color_filter_) {
 			pcl::PointCloud<pcl::PointXYZRGB>::Ptr color_filtered(new pcl::PointCloud<pcl::PointXYZRGB>);
 			filterByColor(cloud_no_nan, color_filtered);
-			input_for_z_filter = color_filtered; // Switch pointer if color filtering ran
+			input_for_z_filter = color_filtered;
 		}
 
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr z_filtered(new pcl::PointCloud<pcl::PointXYZRGB>);
