@@ -87,7 +87,7 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
 
     std::vector<pcl::PointIndices> cluster_indices;
     pcl::EuclideanClusterExtraction<pcl::PointXYZRGB> ec;
-    ec.setClusterTolerance(0.015);   // 2cm - max gap between points in the same cluster
+    ec.setClusterTolerance(0.01);   // 2cm - max gap between points in the same cluster
     ec.setMinClusterSize(1000);       // discard clusters smaller than this (likely noise)
     ec.setMaxClusterSize(25000);    // discard implausibly large clusters
     ec.setSearchMethod(tree);
