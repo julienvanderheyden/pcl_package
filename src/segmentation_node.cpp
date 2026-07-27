@@ -12,6 +12,9 @@
 #include <pcl/sample_consensus/method_types.h>
 #include <pcl/sample_consensus/model_types.h>
 
+#include <pcl/segmentation/extract_clusters.h>
+#include <pcl/search/kdtree.h>
+
 ros::Publisher pub;
 
 void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
@@ -78,9 +81,54 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
 
     ROS_INFO("After plane removal: %lu points remain (objects)", objects_cloud->points.size());
 
+	// --- Euclidean cluster extraction ---
+    pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGB>);
+    tree->setInputCloud(objects_cloud);
+
+    std::vector<pcl::PointIndices> cluster_indices;
+    pcl::EuclideanClusterExtraction<pcl::PointXYZRGB> ec;
+    ec.setClusterTolerance(0.02);   // 2cm - max gap between points in the same cluster
+    ec.setMinClusterSize(30);       // discard clusters smaller than this (likely noise)
+    ec.setMaxClusterSize(25000);    // discard implausibly large clusters
+    ec.setSearchMethod(tree);
+    ec.setInputCloud(objects_cloud);
+    ec.extract(cluster_indices);
+
+    ROS_INFO("Found %lu clusters", cluster_indices.size());
+
+    // --- Build a colored output cloud: one distinct color per cluster ---
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_clusters(new pcl::PointCloud<pcl::PointXYZRGB>);
+
+    // A small palette of visually distinct colors, cycled if there are more clusters than colors
+    std::vector<std::array<uint8_t, 3>> palette = {
+        {230, 25, 75},   {60, 180, 75},   {255, 225, 25},  {0, 130, 200},
+        {245, 130, 48},  {145, 30, 180},  {70, 240, 240},  {240, 50, 230},
+        {210, 245, 60},  {250, 190, 212}
+    };
+
+    int cluster_id = 0;
+    for (const auto& indices : cluster_indices) {
+        const auto& color = palette[cluster_id % palette.size()];
+
+        for (int idx : indices.indices) {
+            pcl::PointXYZRGB point = objects_cloud->points[idx];
+            point.r = color[0];
+            point.g = color[1];
+            point.b = color[2];
+            colored_clusters->points.push_back(point);
+        }
+
+        cluster_id++;
+    }
+
+    colored_clusters->width = colored_clusters->points.size();
+    colored_clusters->height = 1;
+    colored_clusters->is_dense = true;
+
+
     // Convert back to ROS PointCloud2 and publish
     sensor_msgs::PointCloud2 output_msg;
-    pcl::toROSMsg(*objects_cloud, output_msg);
+    pcl::toROSMsg(*colored_clusters, output_msg);
     output_msg.header = msg->header;
 
     pub.publish(output_msg);
