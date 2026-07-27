@@ -216,7 +216,7 @@ private:
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr confirmed_cluster_{new pcl::PointCloud<pcl::PointXYZRGB>};
     int mismatch_count_ = 0;
 
-    static constexpr float kCentroidMatchThreshold = 0.03f;  // [cm] - "same object" tolerance
+    static constexpr float kCentroidMatchThreshold = 0.01f;  // [cm] - "same object" tolerance
     static constexpr int kConfirmFramesRequired = 4;         // consecutive mismatched frames before accepting a change
 
     void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
