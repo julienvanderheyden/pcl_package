@@ -24,7 +24,7 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::fromROSMsg(*msg, *pcl_cloud);
 
-    ROS_INFO("Input cloud: %lu points", pcl_cloud->points.size());
+    //ROS_INFO("Input cloud: %lu points", pcl_cloud->points.size());
 
     // --- Passthrough filtering: crop to workspace region ---
     // Z axis (depth from camera) - keep only the range where your workspace/table sits
@@ -43,7 +43,7 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     pass_x.setFilterLimits(-0.3, 0.3);  //meters
     pass_x.filter(*x_filtered);
 
-	ROS_INFO("After passthrough: %lu points", x_filtered->points.size());
+	//ROS_INFO("After passthrough: %lu points", x_filtered->points.size());
 
 	// --- Voxel grid downsampling ---
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr voxel_filtered(new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -52,7 +52,7 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     voxel_filter.setLeafSize(0.0025f, 0.0025f, 0.0025f);
     voxel_filter.filter(*voxel_filtered);
 
-    ROS_INFO("After voxel filtering: %lu points", voxel_filtered->points.size());
+    //ROS_INFO("After voxel filtering: %lu points", voxel_filtered->points.size());
 
 	// --- RANSAC plane segmentation: find the table ---
     pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
@@ -79,7 +79,7 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     extract.setNegative(true);  // true = keep everything EXCEPT the plane inliers
     extract.filter(*objects_cloud);
 
-    ROS_INFO("After plane removal: %lu points remain (objects)", objects_cloud->points.size());
+    //ROS_INFO("After plane removal: %lu points remain (objects)", objects_cloud->points.size());
 
 	// --- Euclidean cluster extraction ---
     pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGB>);
@@ -94,7 +94,12 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     ec.setInputCloud(objects_cloud);
     ec.extract(cluster_indices);
 
-    ROS_INFO("Found %lu clusters", cluster_indices.size());
+    //ROS_INFO("Found %lu clusters", cluster_indices.size());
+	// --- Guard: nothing downstream is safe to run on an empty cluster list ---
+	if (cluster_indices.empty()) {
+		//ROS_WARN("No clusters found in this frame, skipping publish.");
+		return;
+	}
 
     // --- Build a colored output cloud: one distinct color per cluster ---
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_clusters(new pcl::PointCloud<pcl::PointXYZRGB>);
