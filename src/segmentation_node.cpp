@@ -58,6 +58,7 @@ private:
             float dg = static_cast<float>(point.g) - stand_g_;
             float db = static_cast<float>(point.b) - stand_b_;
             double dist = std::sqrt(dr * dr + dg * dg + db * db);
+			ROS_INFO("Point color: (%d, %d, %d), distance to target: %.2f", point.r, point.g, point.b, dist);
 
             if (dist >= color_threshold_) {
                 // Color is far enough from the target - keep this point
