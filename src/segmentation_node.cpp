@@ -18,9 +18,11 @@
 ros::Publisher pub;
 
 void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
+	ros::WallTime t_start = ros::WallTime::now();
     // Convert ROS PointCloud2 -> PCL point cloud
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::fromROSMsg(*msg, *pcl_cloud);
+	ros::WallTime t_start = ros::WallTime::now();
 
     ROS_INFO("Input cloud: %lu points", pcl_cloud->points.size());
 
@@ -31,6 +33,7 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     voxel_filter.setLeafSize(0.0025f, 0.0025f, 0.0025f);
     voxel_filter.filter(*voxel_filtered);
 
+	ros::WallTime t_voxel = ros::WallTime::now();
     ROS_INFO("After voxel filtering: %lu points", voxel_filtered->points.size());
 
     // --- Passthrough filtering: crop to workspace region ---
@@ -50,6 +53,7 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     pass_x.setFilterLimits(-0.3, 0.3);  //meters
     pass_x.filter(*x_filtered);
 
+	ros::WallTime t_passthrough = ros::WallTime::now();
 	ROS_INFO("After passthrough: %lu points", x_filtered->points.size());
 
 	// --- RANSAC plane segmentation: find the table ---
@@ -79,6 +83,7 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     extract.setNegative(true);  // true = keep everything EXCEPT the plane inliers
     extract.filter(*objects_cloud);
 
+	ros::WallTime t_ransac = ros::WallTime::now();
     ROS_INFO("After plane removal: %lu points remain (objects)", objects_cloud->points.size());
 
 	// --- Euclidean cluster extraction ---
@@ -94,6 +99,7 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     ec.setInputCloud(objects_cloud);
     ec.extract(cluster_indices);
 
+	ros::WallTime t_cluster = ros::WallTime::now();
     ROS_INFO("Found %lu clusters", cluster_indices.size());
 
     // --- Build a colored output cloud: one distinct color per cluster ---
@@ -133,6 +139,15 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     sensor_msgs::PointCloud2 output_msg;
     pcl::toROSMsg(*colored_clusters, output_msg);
     output_msg.header = msg->header;
+	ros::WallTime t_end = ros::WallTime::now();
+
+	ROS_INFO("convert: %.1fms | voxel: %.1fms | passthrough: %.1fms | ransac: %.1fms | cluster+color: %.1fms | total: %.1fms",
+        (t_convert - t_start).toSec() * 1000,
+        (t_voxel - t_convert).toSec() * 1000,
+        (t_passthrough - t_voxel).toSec() * 1000,
+        (t_ransac - t_passthrough).toSec() * 1000,
+        (t_end - t_ransac).toSec() * 1000,
+        (t_end - t_start).toSec() * 1000);
 
     pub.publish(output_msg);
 }
