@@ -62,7 +62,7 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     seg.setOptimizeCoefficients(true);
     seg.setModelType(pcl::SACMODEL_PLANE);
     seg.setMethodType(pcl::SAC_RANSAC);
-    seg.setDistanceThreshold(0.0075);  // how close a point must be to count as "on the plane"
+    seg.setDistanceThreshold(0.01);  // how close a point must be to count as "on the plane"
     seg.setInputCloud(voxel_filtered);
     seg.segment(*inliers, *coefficients);
 
