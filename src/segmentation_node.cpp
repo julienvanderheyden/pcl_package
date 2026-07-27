@@ -36,7 +36,7 @@ private:
     int stand_r_= 0;
 	int stand_g_ = 92 ;
 	int stand_b_ = 255;
-    double color_threshold_ = 120.0;
+    double color_threshold_ = 150.0;
 
     // --- Temporal smoothing state ---
     bool have_confirmed_ = false;
