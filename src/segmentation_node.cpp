@@ -36,7 +36,7 @@ private:
     int stand_r_= 0;
 	int stand_g_ = 92 ;
 	int stand_b_ = 255;
-    double color_threshold_ = 100.0;
+    double color_threshold_ = 120.0;
 
     // --- Temporal smoothing state ---
     bool have_confirmed_ = false;
@@ -144,7 +144,7 @@ private:
         std::vector<pcl::PointIndices> cluster_indices;
         pcl::EuclideanClusterExtraction<pcl::PointXYZRGB> ec;
         ec.setClusterTolerance(0.01);
-        ec.setMinClusterSize(1000);
+        ec.setMinClusterSize(700);
         ec.setMaxClusterSize(25000);
         ec.setSearchMethod(tree);
         ec.setInputCloud(objects_cloud);
