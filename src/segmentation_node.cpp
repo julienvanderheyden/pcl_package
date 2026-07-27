@@ -141,12 +141,13 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     output_msg.header = msg->header;
 	ros::WallTime t_end = ros::WallTime::now();
 
-	ROS_INFO("convert: %.1fms | voxel: %.1fms | passthrough: %.1fms | ransac: %.1fms | cluster+color: %.1fms | total: %.1fms",
+	ROS_INFO("convert: %.1fms | voxel: %.1fms | passthrough: %.1fms | ransac: %.1fms | cluster: %.1fms | color: %.1fms | total: %.1fms",
         (t_convert - t_start).toSec() * 1000,
         (t_voxel - t_convert).toSec() * 1000,
         (t_passthrough - t_voxel).toSec() * 1000,
         (t_ransac - t_passthrough).toSec() * 1000,
-        (t_end - t_ransac).toSec() * 1000,
+        (t_cluster - t_ransac).toSec() * 1000,
+        (t_end - t_cluster).toSec() * 1000,
         (t_end - t_start).toSec() * 1000);
 
     pub.publish(output_msg);
