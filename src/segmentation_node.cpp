@@ -89,7 +89,7 @@ private:
 			filterByColor(cloud_no_nan, color_filtered);
 			input_for_z_filter = color_filtered;
 			sensor_msgs::PointCloud2 debug_msg;
-			pcl::toROSMsg(*colored_clusters, debug_msg);
+			pcl::toROSMsg(*color_filtered, debug_msg);
 			debug_msg.header = msg->header;
 			pub_debug_.publish(debug_msg);
 		}
