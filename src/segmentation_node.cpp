@@ -1,5 +1,6 @@
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <geometry_msgs/Vector3Stamped.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -24,6 +25,7 @@ public:
         pub_colored_ = nh.advertise<sensor_msgs::PointCloud2>("/segmentation/colored_point_cloud", 1);
         pub_largest_ = nh.advertise<sensor_msgs::PointCloud2>("/segmentation/object_point_cloud", 1);
 		pub_debug_ = nh.advertise<sensor_msgs::PointCloud2>("/segmentation/debug_point_cloud", 1);
+		pub_table_normal_ = nh.advertise<geometry_msgs::Vector3Stamped>("/segmentation/table_normal", 1);
     }
 
 private:
@@ -32,6 +34,7 @@ private:
     ros::Publisher pub_colored_;
     ros::Publisher pub_largest_;
     ros::Publisher pub_debug_;
+	ros::Publisher pub_table_normal_;
 	// Color filter params
 	bool use_color_filter_ = true;
     int stand_r_= 0;
@@ -129,6 +132,16 @@ private:
             publishHeldResult(msg->header);
             return;
         }
+
+		// --- Publish the table normal, derived directly from the plane fit ---
+		Eigen::Vector3f normal(coefficients->values[0], coefficients->values[1], coefficients->values[2]);
+		normal.normalize();
+		geometry_msgs::Vector3Stamped normal_msg;
+		normal_msg.header = msg->header;
+		normal_msg.vector.x = normal.x();
+		normal_msg.vector.y = normal.y();
+		normal_msg.vector.z = normal.z();
+		pub_table_normal_.publish(normal_msg);
 
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr objects_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
         pcl::ExtractIndices<pcl::PointXYZRGB> extract;
