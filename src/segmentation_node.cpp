@@ -47,9 +47,11 @@ private:
     Eigen::Vector4f confirmed_centroid_ = Eigen::Vector4f::Zero();
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr confirmed_cluster_{new pcl::PointCloud<pcl::PointXYZRGB>};
     int mismatch_count_ = 0;
+	int missing_count_ = 0;
 
     static constexpr float kCentroidMatchThreshold = 0.01f;  // [cm] - "same object" tolerance
     static constexpr int kConfirmFramesRequired = 4;         // consecutive mismatched frames before accepting a change
+	static constexpr int kMissingFramesRequired = 10;  // consecutive empty frames before clearing held result
 
 	// --- Color filtering: remove points whose color is close to a given target ---
     void filterByColor(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input,
@@ -75,6 +77,22 @@ private:
         output->height = 1;
         output->is_dense = input->is_dense;
     }
+
+	void handleMissingDetection(const std_msgs::Header& header, const std::string& reason) {
+		missing_count_++;
+		ROS_WARN_THROTTLE(1.0, "%s (missing %d/%d)", reason.c_str(), missing_count_, kMissingFramesRequired);
+
+		if (missing_count_ >= kMissingFramesRequired) {
+			if (have_confirmed_) {
+				ROS_WARN("Object missing for %d consecutive frames - clearing held result.", missing_count_);
+			}
+			have_confirmed_ = false;
+			confirmed_cluster_->points.clear();
+			return;  
+		}
+
+		publishHeldResult(header);
+	}
 
     void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -128,10 +146,9 @@ private:
         seg.segment(*inliers, *coefficients);
 
         if (inliers->indices.empty()) {
-            ROS_WARN("No plane found.");
-            publishHeldResult(msg->header);
-            return;
-        }
+			handleMissingDetection(msg->header, "No plane found.");
+			return;
+		}
 
 		// --- Publish the table normal, derived directly from the plane fit ---
 		Eigen::Vector3f normal(coefficients->values[0], coefficients->values[1], coefficients->values[2]);
@@ -151,10 +168,9 @@ private:
         extract.filter(*objects_cloud);
 
         if (objects_cloud->points.empty()) {
-            ROS_WARN("No points remain after plane removal.");
-            publishHeldResult(msg->header);
-            return;
-        }
+			handleMissingDetection(msg->header, "No points remain after plane removal.");
+			return;
+		}
 
         pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGB>);
         tree->setInputCloud(objects_cloud);
@@ -169,10 +185,9 @@ private:
         ec.extract(cluster_indices);
 
         if (cluster_indices.empty()) {
-            ROS_WARN("No clusters found this frame.");
-            publishHeldResult(msg->header);
-            return;
-        }
+			handleMissingDetection(msg->header, "No clusters found this frame.");
+			return;
+		}
 
 		// --- Build the colored multi-cluster cloud (debug visualization, always published from raw frame) ---
 		static const std::vector<std::array<uint8_t, 3>> palette = {
@@ -225,9 +240,10 @@ private:
         Eigen::Vector4f candidate_centroid;
         pcl::compute3DCentroid(*candidate_cluster, candidate_centroid);
 
+		missing_count_ = 0;  // reset missing counter since we have a valid cluster this frame
+
         // --- Temporal smoothing decision ---
         if (!have_confirmed_) {
-            // First valid frame ever - accept immediately
             acceptCandidate(candidate_cluster, candidate_centroid);
         } else {
             float dist = (candidate_centroid - confirmed_centroid_).head<3>().norm();
@@ -236,7 +252,7 @@ private:
                 // Same object, normal update - reset mismatch counter
                 acceptCandidate(candidate_cluster, candidate_centroid);
             } else {
-                // Suspicious jump - could be noise (split/fusion) or a real change
+                // Suspicious jump - could be noise or a real change
                 mismatch_count_++;
 
                 if (mismatch_count_ >= kConfirmFramesRequired) {
