@@ -194,7 +194,7 @@ private:
         pcl::fromROSMsg(*msg, *cloud);
 
         if (cloud->points.empty()) {
-            PrimitiveClassraw_class = PrimitiveClass::UNKNOWN;
+            PrimitiveClass raw_class = PrimitiveClass::UNKNOWN;
             pending_class_ = PrimitiveClass::UNKNOWN;
             pending_count_ = 0;
             confirmed_class_ = PrimitiveClass::UNKNOWN;
