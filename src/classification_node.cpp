@@ -193,6 +193,13 @@ private:
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
         pcl::fromROSMsg(*msg, *cloud);
 
+        if (cloud->points.empty()) {
+            pending_class_ = PrimitiveClass::UNKNOWN;
+            pending_count_ = 0;
+            confirmed_class_ = PrimitiveClass::UNKNOWN;
+            return;
+        }
+
         if (cloud->points.size() < 10) {
             ROS_WARN("Too few points (%lu) for reliable PCA, skipping.", cloud->points.size());
             return;

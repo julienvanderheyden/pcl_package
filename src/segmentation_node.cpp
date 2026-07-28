@@ -84,14 +84,27 @@ private:
 
 		if (missing_count_ >= kMissingFramesRequired) {
 			if (have_confirmed_) {
-				ROS_WARN("Object missing for %d consecutive frames - clearing held result.", missing_count_);
+				ROS_WARN("Object missing for %d consecutive frames - publishing empty cloud.", missing_count_);
 			}
 			have_confirmed_ = false;
 			confirmed_cluster_->points.clear();
+			publishEmptyResult(header);
 			return;  
 		}
 
 		publishHeldResult(header);
+	}
+
+	void publishEmptyResult(const std_msgs::Header& header) {
+		pcl::PointCloud<pcl::PointXYZRGB> empty_cloud;
+		empty_cloud.width = 0;
+		empty_cloud.height = 1;
+		empty_cloud.is_dense = true;
+
+		sensor_msgs::PointCloud2 empty_msg;
+		pcl::toROSMsg(empty_cloud, empty_msg);
+		empty_msg.header = header; 
+		pub_largest_.publish(empty_msg);
 	}
 
     void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
