@@ -176,7 +176,7 @@ private:
 
     double sphere_ratio_threshold_ = 0.7;
     double angle_threshold_deg_ = 20.0;
-    int confirm_frames_required_ = 10;
+    int confirm_frames_required_ = 30;
 
     // --- Temporal voting state ---
     PrimitiveClass pending_class_ = PrimitiveClass::UNKNOWN;
@@ -194,14 +194,13 @@ private:
         pcl::fromROSMsg(*msg, *cloud);
 
         if (cloud->points.empty()) {
+            raw_class = PrimitiveClass::UNKNOWN;
             pending_class_ = PrimitiveClass::UNKNOWN;
             pending_count_ = 0;
             confirmed_class_ = PrimitiveClass::UNKNOWN;
-            return;
-        }
-
-        if (cloud->points.size() < 10) {
-            ROS_WARN("Too few points (%lu) for reliable PCA, skipping.", cloud->points.size());
+            ROS_INFO("Raw: %-10s | Pending: %-10s (%d/%d) | Confirmed: %s",
+                  toString(raw_class).c_str(), toString(pending_class_).c_str(),
+                  pending_count_, confirm_frames_required_, toString(confirmed_class_).c_str());
             return;
         }
 
