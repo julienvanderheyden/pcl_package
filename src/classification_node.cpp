@@ -174,7 +174,7 @@ private:
     Eigen::Vector3f table_normal_ = Eigen::Vector3f(0, -1, 0);  // fallback default until first message
     bool have_table_normal_ = false;
 
-    double sphere_ratio_threshold_ = 0.75;
+    double sphere_ratio_threshold_ = 0.7;
     double angle_threshold_deg_ = 20.0;
     int confirm_frames_required_ = 10;
 
