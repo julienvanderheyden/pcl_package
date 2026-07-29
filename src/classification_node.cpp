@@ -47,12 +47,18 @@ private:
 
     double sphere_ratio_threshold_ = 0.65;
     double angle_threshold_deg_ = 20.0;
-    int confirm_frames_required_ = 10;
 
-    // --- Temporal voting state ---
-    PrimitiveClass pending_class_ = PrimitiveClass::UNKNOWN;
-    int pending_count_ = 0;
+    // --- Unified temporal voting state ---
+    std::map<PrimitiveClass, double> class_scores_ = {
+        {PrimitiveClass::SPHERE, 0.0},
+        {PrimitiveClass::CYLINDER, 0.0},
+        {PrimitiveClass::FLAT_BOX, 0.0}
+    };
     PrimitiveClass confirmed_class_ = PrimitiveClass::UNKNOWN;
+
+    static constexpr double kMaxClassScore = 30.0;     // score cap per class
+    static constexpr double kConfirmThreshold = 30.0;  // bar to GAIN confirmation (high)
+    static constexpr double kExpireThreshold = 10.0;   // bar to KEEP confirmation (low - hysteresis gap)      
 
     void tableNormalCallback(const geometry_msgs::Vector3StampedConstPtr& msg) {
         table_normal_ = Eigen::Vector3f(msg->vector.x, msg->vector.y, msg->vector.z).normalized();
@@ -65,13 +71,7 @@ private:
         pcl::fromROSMsg(*msg, *cloud);
 
         if (cloud->points.empty()) {
-            PrimitiveClass raw_class = PrimitiveClass::UNKNOWN;
-            pending_class_ = PrimitiveClass::UNKNOWN;
-            pending_count_ = 0;
-            confirmed_class_ = PrimitiveClass::UNKNOWN;
-            ROS_INFO("Raw: %-10s | Pending: %-10s (%d/%d) | Confirmed: %s",
-                  toString(raw_class).c_str(), toString(pending_class_).c_str(),
-                  pending_count_, confirm_frames_required_, toString(confirmed_class_).c_str());
+            resetClassification();
             return;
         }
 
@@ -104,24 +104,17 @@ private:
 
         // --- Classification decision for THIS frame only ---
         PrimitiveClass raw_class = classify(lambda, axis[0]);
+        updateTemporalPersistence(raw_class);  // update the temporal voting state
 
-        // --- Temporal voting / persistence ---
-        if (raw_class == pending_class_) {
-            pending_count_++;
-        } else {
-            pending_class_ = raw_class;
-            pending_count_ = 1;
-        }
 
-        if (pending_count_ >= confirm_frames_required_ && pending_class_ != confirmed_class_) {
-            ROS_INFO("Classification CONFIRMED: %s (after %d consistent frames)",
-                      toString(pending_class_).c_str(), pending_count_);
-            confirmed_class_ = pending_class_;
-        }
+        ROS_INFO("Raw: %-10s | Scores: SPHERE=%.1f CYL=%.1f BOX=%.1f | Confirmed: %s",
+              toString(raw_class).c_str(),
+              class_scores_[PrimitiveClass::SPHERE], class_scores_[PrimitiveClass::CYLINDER],
+              class_scores_[PrimitiveClass::FLAT_BOX],
+              toString(confirmed_class_).c_str());
 
-        ROS_INFO("Raw: %-10s | Pending: %-10s (%d/%d) | Confirmed: %s",
-                  toString(raw_class).c_str(), toString(pending_class_).c_str(),
-                  pending_count_, confirm_frames_required_, toString(confirmed_class_).c_str());
+
+        // --- FITTING ---
 
         if (confirmed_class_ == PrimitiveClass::SPHERE) {
             Eigen::Vector3f sphere_center;
@@ -194,6 +187,60 @@ private:
         }
         radius_out = std::sqrt(r_squared);
         return true;
+    }
+
+    void resetClassification() {
+        for (auto& [cls, score] : class_scores_) score = 0.0;
+        confirmed_class_ = PrimitiveClass::UNKNOWN;
+    }
+
+    // --- Combined entry point, called once per frame with this frame's raw classification ---
+    void updateTemporalPersistence(PrimitiveClass raw_class) {
+        updateClassScores(raw_class);
+        updateConfirmedClass();
+    }
+
+    // --- Step 1: update the bounded score of every candidate class from this frame's raw vote ---
+    void updateClassScores(PrimitiveClass raw_class) {
+        for (auto& [cls, score] : class_scores_) {
+            if (cls == raw_class) {
+                score = std::min(kMaxClassScore, score + 1.0);
+            //} else if (raw_class != PrimitiveClass::UNKNOWN) {
+            } else {  // UNKNOWN votes against all classes, so decrement all scores
+                score = std::max(0.0, score - 1.0);
+            }
+        }
+    }
+
+    // --- Step 2: apply hysteresis to decide whether confirmed_class_ should change ---
+    void updateConfirmedClass() {
+        // Find the current leading candidate
+        PrimitiveClass leading_class = PrimitiveClass::UNKNOWN;
+        double leading_score = 0.0;
+        for (const auto& [cls, score] : class_scores_) {
+            if (score > leading_score) {
+                leading_score = score;
+                leading_class = cls;
+            }
+        }
+
+        // Gain: a different class convincingly crosses the high bar
+        if (leading_score >= kConfirmThreshold && leading_class != confirmed_class_) {
+            ROS_INFO("Classification CONFIRMED: %s (score %.1f)",
+                      toString(leading_class).c_str(), leading_score);
+            confirmed_class_ = leading_class;
+            return;
+        }
+
+        // Keep/expire: only the currently confirmed class's own score matters here
+        if (confirmed_class_ != PrimitiveClass::UNKNOWN) {
+            double current_score = class_scores_[confirmed_class_];
+            if (current_score < kExpireThreshold) {
+                ROS_WARN("Confirmed class %s lost support (score=%.1f) - clearing.",
+                          toString(confirmed_class_).c_str(), current_score);
+                confirmed_class_ = PrimitiveClass::UNKNOWN;
+            }
+        }
     }
 
     void publishSphereMarker(const std_msgs::Header& header, const Eigen::Vector3f& center, float radius) {
