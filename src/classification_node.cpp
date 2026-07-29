@@ -47,7 +47,7 @@ private:
 
     double sphere_ratio_threshold_ = 0.7;
     double angle_threshold_deg_ = 20.0;
-    int confirm_frames_required_ = 30;
+    int confirm_frames_required_ = 10;
 
     // --- Temporal voting state ---
     PrimitiveClass pending_class_ = PrimitiveClass::UNKNOWN;
