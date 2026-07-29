@@ -220,7 +220,7 @@ private:
         marker.color.r = 1.0f;
         marker.color.g = 0.6f;
         marker.color.b = 0.0f;
-        marker.color.a = 0.4f;  // semi-transparent, so you can see the real point cloud through it
+        marker.color.a = 1.0f;  // semi-transparent, so you can see the real point cloud through it
 
         marker.lifetime = ros::Duration(0.5);  // auto-expire, same pattern as your PCA axes
 
