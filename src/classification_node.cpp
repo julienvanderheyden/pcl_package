@@ -33,17 +33,14 @@ public:
         sub_table_normal_ = nh.subscribe("/segmentation/table_normal", 1,
                                    &PCAClassificationNode::tableNormalCallback, this);
         pub_markers_ = nh.advertise<visualization_msgs::MarkerArray>("/classification/pca_axes", 1);
-
-        pub_sphere_diameter_ = nh.advertise<std_msgs::Float64>("/perception/sphere_diameter", 1);
-        pub_sphere_pose_ = nh.advertise<geometry_msgs::PoseStamped>("/perception/sphere_pose", 1);
+        pub_sphere_marker_ = nh.advertise<visualization_msgs::Marker>("/perception/sphere_marker", 1);
     }
 
 private:
     ros::Subscriber sub_;
     ros::Publisher pub_markers_;
     ros::Subscriber sub_table_normal_;
-    ros::Publisher pub_sphere_diameter_;
-    ros::Publisher pub_sphere_pose_;
+    ros::Publisher pub_sphere_marker_;
 
     Eigen::Vector3f table_normal_ = Eigen::Vector3f(0, -1, 0);  // fallback default until first message
     bool have_table_normal_ = false;
@@ -131,17 +128,8 @@ private:
             float sphere_radius;
 
             if (fitSphere(cloud, sphere_center, sphere_radius)) {
-                std_msgs::Float64 diameter_msg;
-                diameter_msg.data = 2.0 * sphere_radius;
-                pub_sphere_diameter_.publish(diameter_msg);
-
-                geometry_msgs::PoseStamped pose_msg;
-                pose_msg.header = msg->header;
-                pose_msg.pose.position.x = sphere_center.x();
-                pose_msg.pose.position.y = sphere_center.y();
-                pose_msg.pose.position.z = sphere_center.z();
-                pose_msg.pose.orientation.w = 1.0;  // orientation irrelevant for a sphere
-                pub_sphere_pose_.publish(pose_msg);
+                // ---  RViz visualization ---
+                publishSphereMarker(msg->header, sphere_center, sphere_radius);
 
                 ROS_INFO("SPHERE fit: diameter=%.4f m, center=[%.3f, %.3f, %.3f]",
                         2.0 * sphere_radius, sphere_center.x(), sphere_center.y(), sphere_center.z());
@@ -206,6 +194,37 @@ private:
         }
         radius_out = std::sqrt(r_squared);
         return true;
+    }
+
+    void publishSphereMarker(const std_msgs::Header& header, const Eigen::Vector3f& center, float radius) {
+        visualization_msgs::Marker marker;
+        marker.header = header;
+        marker.ns = "fitted_sphere";
+        marker.id = 0;
+        marker.type = visualization_msgs::Marker::SPHERE;
+        marker.action = visualization_msgs::Marker::ADD;
+
+        marker.pose.position.x = center.x();
+        marker.pose.position.y = center.y();
+        marker.pose.position.z = center.z();
+        marker.pose.orientation.x = 0.0;
+        marker.pose.orientation.y = 0.0;
+        marker.pose.orientation.z = 0.0;
+        marker.pose.orientation.w = 1.0;  // orientation irrelevant for a sphere
+
+        // Marker scale = full diameter along each axis (RViz spheres are scaled, not radius-defined)
+        marker.scale.x = 2.0 * radius;
+        marker.scale.y = 2.0 * radius;
+        marker.scale.z = 2.0 * radius;
+
+        marker.color.r = 1.0f;
+        marker.color.g = 0.6f;
+        marker.color.b = 0.0f;
+        marker.color.a = 0.4f;  // semi-transparent, so you can see the real point cloud through it
+
+        marker.lifetime = ros::Duration(0.5);  // auto-expire, same pattern as your PCA axes
+
+        pub_sphere_marker_.publish(marker);
     }
 
     void publishAxisMarkers(const std_msgs::Header& header, const Eigen::Vector3f& centroid,
