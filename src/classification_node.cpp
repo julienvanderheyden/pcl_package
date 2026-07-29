@@ -1,9 +1,11 @@
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <geometry_msgs/Vector3Stamped.h>
-#include <visualization_msgs/MarkerArray.h>
-#include <std_msgs/Float64.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <visualization_msgs/MarkerArray.h>
+#include <visualization_msgs/Marker.h>
+#include <std_msgs/Float64.h>
+
 
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
@@ -34,13 +36,15 @@ public:
                                    &PCAClassificationNode::tableNormalCallback, this);
         pub_markers_ = nh.advertise<visualization_msgs::MarkerArray>("/classification/pca_axes", 1);
         pub_sphere_marker_ = nh.advertise<visualization_msgs::Marker>("/perception/sphere_marker", 1);
+        pub_cylinder_marker_ = nh.advertise<visualization_msgs::Marker>("/perception/cylinder_marker", 1);
     }
 
 private:
     ros::Subscriber sub_;
-    ros::Publisher pub_markers_;
     ros::Subscriber sub_table_normal_;
+    ros::Publisher pub_markers_;
     ros::Publisher pub_sphere_marker_;
+    ros::Publisher pub_cylinder_marker_;
 
     Eigen::Vector3f table_normal_ = Eigen::Vector3f(0, -1, 0);  // fallback default until first message
     bool have_table_normal_ = false;
@@ -129,6 +133,19 @@ private:
             } else {
                 ROS_WARN("Sphere fit degenerate (invalid radius) - skipping publish this frame.");
             }
+        } else if (confirmed_class_ == PrimitiveClass::CYLINDER) {
+            Eigen::Vector3f cyl_center;
+            float cyl_radius, cyl_height;
+
+            if (fitCylinder(cloud, table_normal_, cyl_center, cyl_radius, cyl_height)) {
+
+                publishCylinderMarker(msg->header, cyl_center, table_normal_, cyl_radius, cyl_height);
+                
+                ROS_INFO("CYLINDER fit: diameter=%.4f m, height=%.4f m, center=[%.3f, %.3f, %.3f]",
+                        2.0 * cyl_radius, cyl_height, cyl_center.x(), cyl_center.y(), cyl_center.z());
+            } else {
+                ROS_WARN("Cylinder fit degenerate (invalid radius) - skipping publish this frame.");
+            }
         }
 
 
@@ -155,38 +172,6 @@ private:
         }
 
         return PrimitiveClass::UNKNOWN;
-    }
-
-    // Algebraic least-squares sphere fit.
-    // Sphere equation: (x-cx)^2 + (y-cy)^2 + (z-cz)^2 = r^2
-    // Rearranged (linear in the unknowns cx,cy,cz,k):
-    //   x^2+y^2+z^2 = 2*cx*x + 2*cy*y + 2*cz*z + k,   where k = r^2 - cx^2 - cy^2 - cz^2
-    // Solving this linear system directly gives center + radius, no iteration needed.
-    bool fitSphere(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
-                    Eigen::Vector3f& center_out, float& radius_out) {
-        int n = cloud->points.size();
-        Eigen::MatrixXf A(n, 4);
-        Eigen::VectorXf b(n);
-
-        for (int i = 0; i < n; ++i) {
-            const auto& p = cloud->points[i];
-            A(i, 0) = 2.0f * p.x;
-            A(i, 1) = 2.0f * p.y;
-            A(i, 2) = 2.0f * p.z;
-            A(i, 3) = 1.0f;
-            b(i) = p.x * p.x + p.y * p.y + p.z * p.z;
-        }
-
-        Eigen::Vector4f sol = A.colPivHouseholderQr().solve(b);
-        center_out = sol.head<3>();
-        float k = sol(3);
-        float r_squared = k + center_out.squaredNorm();
-
-        if (r_squared <= 0.0f) {
-            return false;  // degenerate fit - reject
-        }
-        radius_out = std::sqrt(r_squared);
-        return true;
     }
 
     void resetClassification() {
@@ -243,6 +228,102 @@ private:
         }
     }
 
+    // Algebraic least-squares sphere fit.
+    // Sphere equation: (x-cx)^2 + (y-cy)^2 + (z-cz)^2 = r^2
+    // Rearranged (linear in the unknowns cx,cy,cz,k):
+    //   x^2+y^2+z^2 = 2*cx*x + 2*cy*y + 2*cz*z + k,   where k = r^2 - cx^2 - cy^2 - cz^2
+    // Solving this linear system directly gives center + radius, no iteration needed.
+    bool fitSphere(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
+                    Eigen::Vector3f& center_out, float& radius_out) {
+        int n = cloud->points.size();
+        Eigen::MatrixXf A(n, 4);
+        Eigen::VectorXf b(n);
+
+        for (int i = 0; i < n; ++i) {
+            const auto& p = cloud->points[i];
+            A(i, 0) = 2.0f * p.x;
+            A(i, 1) = 2.0f * p.y;
+            A(i, 2) = 2.0f * p.z;
+            A(i, 3) = 1.0f;
+            b(i) = p.x * p.x + p.y * p.y + p.z * p.z;
+        }
+
+        Eigen::Vector4f sol = A.colPivHouseholderQr().solve(b);
+        center_out = sol.head<3>();
+        float k = sol(3);
+        float r_squared = k + center_out.squaredNorm();
+
+        if (r_squared <= 0.0f) {
+            return false;  // degenerate fit - reject
+        }
+        radius_out = std::sqrt(r_squared);
+        return true;
+    }
+
+    bool fitCylinder(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
+                  const Eigen::Vector3f& axis,
+                  Eigen::Vector3f& center_out, float& radius_out, float& height_out) {
+        Eigen::Vector4f centroid4f;
+        pcl::compute3DCentroid(*cloud, centroid4f);
+        Eigen::Vector3f centroid = centroid4f.head<3>();
+
+        Eigen::Vector3f ref = (std::abs(axis.x()) < 0.9f) ? Eigen::Vector3f(1, 0, 0) : Eigen::Vector3f(0, 1, 0);
+        Eigen::Vector3f u = axis.cross(ref).normalized();
+        Eigen::Vector3f v = axis.cross(u).normalized();
+
+        int n = cloud->points.size();
+        Eigen::MatrixXf A(n, 3);
+        Eigen::VectorXf b(n);
+        std::vector<float> axis_projections;
+        axis_projections.reserve(n);
+
+        for (int i = 0; i < n; ++i) {
+            Eigen::Vector3f rel(cloud->points[i].x - centroid.x(),
+                                cloud->points[i].y - centroid.y(),
+                                cloud->points[i].z - centroid.z());
+
+            float xp = rel.dot(u);
+            float yp = rel.dot(v);
+            A(i, 0) = 2.0f * xp;
+            A(i, 1) = 2.0f * yp;
+            A(i, 2) = 1.0f;
+            b(i) = xp * xp + yp * yp;
+
+            axis_projections.push_back(rel.dot(axis));
+        }
+
+        Eigen::Vector3f sol = A.colPivHouseholderQr().solve(b);
+        float a_local = sol(0), b_local = sol(1), k = sol(2);
+        float r_squared = k + a_local * a_local + b_local * b_local;
+
+        if (r_squared <= 0.0f) {
+            return false;
+        }
+
+        radius_out = std::sqrt(r_squared);
+
+        auto [low, high] = robustBounds(axis_projections, 0.02, 0.98);
+        height_out = high - low;
+        float mid_axis = (low + high) / 2.0f;
+
+        center_out = centroid + a_local * u + b_local * v + mid_axis * axis;
+
+        return true;
+    }
+
+    // Returns the (low, high) percentile bounds along the axis
+    // callers can use the difference for extent/height, and the midpoint for centering.
+    std::pair<float, float> robustBounds(std::vector<float>& projections,
+                                        double percentile_low, double percentile_high) {
+        std::sort(projections.begin(), projections.end());
+        int n = projections.size();
+
+        int idx_low = static_cast<int>(percentile_low * (n - 1));
+        int idx_high = static_cast<int>(percentile_high * (n - 1));
+
+        return {projections[idx_low], projections[idx_high]};
+    }
+
     void publishSphereMarker(const std_msgs::Header& header, const Eigen::Vector3f& center, float radius) {
         visualization_msgs::Marker marker;
         marker.header = header;
@@ -272,6 +353,43 @@ private:
         marker.lifetime = ros::Duration(0.5);  // auto-expire, same pattern as your PCA axes
 
         pub_sphere_marker_.publish(marker);
+    }
+
+    void publishCylinderMarker(const std_msgs::Header& header, const Eigen::Vector3f& center,
+                             const Eigen::Vector3f& axis, float radius, float height) {
+        visualization_msgs::Marker marker;
+        marker.header = header;
+        marker.ns = "fitted_cylinder";
+        marker.id = 0;
+        marker.type = visualization_msgs::Marker::CYLINDER;
+        marker.action = visualization_msgs::Marker::ADD;
+
+        marker.pose.position.x = center.x();
+        marker.pose.position.y = center.y();
+        marker.pose.position.z = center.z();
+
+        // RViz's CYLINDER marker is aligned with the LOCAL Z axis by default,
+        // so we need a rotation that maps local Z onto our fitted axis direction.
+        Eigen::Vector3f local_z(0.0f, 0.0f, 1.0f);
+        Eigen::Quaternionf q = Eigen::Quaternionf::FromTwoVectors(local_z, axis);
+
+        marker.pose.orientation.x = q.x();
+        marker.pose.orientation.y = q.y();
+        marker.pose.orientation.z = q.z();
+        marker.pose.orientation.w = q.w();
+
+        marker.scale.x = 2.0 * radius;  // diameter, x
+        marker.scale.y = 2.0 * radius;  // diameter, y
+        marker.scale.z = height;        // full height along local z
+
+        marker.color.r = 0.0f;
+        marker.color.g = 0.6f;
+        marker.color.b = 1.0f;
+        marker.color.a = 0.4f;
+
+        marker.lifetime = ros::Duration(0.5);
+
+        pub_cylinder_marker_.publish(marker);
     }
 
     void publishAxisMarkers(const std_msgs::Header& header, const Eigen::Vector3f& centroid,
