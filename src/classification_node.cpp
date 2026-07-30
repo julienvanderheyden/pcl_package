@@ -53,7 +53,7 @@ private:
     double sphere_ratio_threshold_ = 0.65;
     double angle_threshold_deg_ = 20.0;
 
-    // --- Unified temporal voting state and parameters ---
+    // --- Unified temporal voting state and parameters     ---
     std::map<PrimitiveClass, double> class_scores_ = {
         {PrimitiveClass::SPHERE, 0.0},
         {PrimitiveClass::CYLINDER, 0.0},
