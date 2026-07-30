@@ -417,6 +417,7 @@ private:
         pub_estimate_.publish(msg);
     }
 
+    // Maybe all markers could be published on a single topic? would make it cleaner to manage in RViz
     void publishSphereMarker(const std_msgs::Header& header, const Eigen::Vector3f& center, float radius) {
         visualization_msgs::Marker marker;
         marker.header = header;
