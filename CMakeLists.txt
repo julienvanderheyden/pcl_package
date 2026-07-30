@@ -144,6 +144,7 @@ include_directories(
 # add_executable(${PROJECT_NAME}_node src/pcl_package_node.cpp)
 add_executable(segmentation_node src/segmentation_node.cpp)
 add_executable(classification_node src/classification_node.cpp)
+add_executable(perception_node src/perception_node.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
