@@ -6,6 +6,7 @@
 #include <visualization_msgs/Marker.h>
 #include <std_msgs/Float64.h>
 
+#include <pcl_package/PrimitiveEstimate.h>
 
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
@@ -36,7 +37,7 @@ public:
         pub_sphere_marker_ = nh.advertise<visualization_msgs::Marker>("/perception/sphere_marker", 1);
         pub_cylinder_marker_ = nh.advertise<visualization_msgs::Marker>("/perception/cylinder_marker", 1);
         pub_box_marker_ = nh.advertise<visualization_msgs::Marker>("/perception/box_marker", 1);
-        pub_estimate_ = nh.advertise<your_package::PrimitiveEstimate>("/classification/raw_primitive_estimate", 1);
+        pub_estimate_ = nh.advertise<pcl_package::PrimitiveEstimate>("/classification/raw_primitive_estimate", 1);
     }
 
 private:
