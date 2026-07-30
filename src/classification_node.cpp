@@ -49,10 +49,11 @@ private:
     Eigen::Vector3f table_normal_ = Eigen::Vector3f(0, -1, 0);  // fallback default until first message
     bool have_table_normal_ = false;
 
+    // --- Classification thresholds ---
     double sphere_ratio_threshold_ = 0.65;
     double angle_threshold_deg_ = 20.0;
 
-    // --- Unified temporal voting state ---
+    // --- Unified temporal voting state and parameters ---
     std::map<PrimitiveClass, double> class_scores_ = {
         {PrimitiveClass::SPHERE, 0.0},
         {PrimitiveClass::CYLINDER, 0.0},
@@ -110,14 +111,6 @@ private:
         PrimitiveClass raw_class = classify(lambda, axis[0]);
         updateTemporalPersistence(raw_class);  // update the temporal voting state
 
-
-        ROS_INFO("Raw: %-10s | Scores: SPHERE=%.1f CYL=%.1f BOX=%.1f | Confirmed: %s",
-              toString(raw_class).c_str(),
-              class_scores_[PrimitiveClass::SPHERE], class_scores_[PrimitiveClass::CYLINDER],
-              class_scores_[PrimitiveClass::FLAT_BOX],
-              toString(confirmed_class_).c_str());
-
-
         // --- FITTING ---
 
         if (confirmed_class_ == PrimitiveClass::SPHERE) {
@@ -127,9 +120,6 @@ private:
             if (fitSphere(cloud, sphere_center, sphere_radius)) {
                 // ---  RViz visualization ---
                 publishSphereMarker(msg->header, sphere_center, sphere_radius);
-
-                ROS_INFO("SPHERE fit: diameter=%.4f m, center=[%.3f, %.3f, %.3f]",
-                        2.0 * sphere_radius, sphere_center.x(), sphere_center.y(), sphere_center.z());
             } else {
                 ROS_WARN("Sphere fit degenerate (invalid radius) - skipping publish this frame.");
             }
@@ -138,11 +128,8 @@ private:
             float cyl_radius, cyl_height;
 
             if (fitCylinder(cloud, table_normal_, cyl_center, cyl_radius, cyl_height)) {
-
+                // ---  RViz visualization ---
                 publishCylinderMarker(msg->header, cyl_center, table_normal_, cyl_radius, cyl_height);
-
-                ROS_INFO("CYLINDER fit: diameter=%.4f m, height=%.4f m, center=[%.3f, %.3f, %.3f]",
-                        2.0 * cyl_radius, cyl_height, cyl_center.x(), cyl_center.y(), cyl_center.z());
             } else {
                 ROS_WARN("Cylinder fit degenerate (invalid radius) - skipping publish this frame.");
             }
@@ -154,11 +141,8 @@ private:
 
             if (fitBox(cloud, table_normal_, axis[0], kAssumedDepth,
                     box_center, box_orientation, box_width, box_thickness)) {
-
+                // ---  RViz visualization ---
                 publishBoxMarker(msg->header, box_center, box_orientation, box_width, box_thickness, kAssumedDepth);
-                
-                ROS_INFO("FLAT_BOX fit: width=%.4f m, thickness=%.4f m, depth(assumed)=%.4f m, center=[%.3f, %.3f, %.3f]",
-                        box_width, box_thickness, kAssumedDepth, box_center.x(), box_center.y(), box_center.z());
             } else {
                 ROS_WARN("Box fit degenerate - skipping publish this frame.");
             }
