@@ -13,7 +13,7 @@ public:
         service_ = nh.advertiseService("/perception/get_stable_estimate",
                                          &PerceptionNode::handleRequest, this);
 
-        pub_final_marker_ = nh.advertise<visualization_msgs::Marker>("/final_primitive_marker", 1, latch=true);
+        pub_final_marker_ = nh.advertise<visualization_msgs::Marker>("/final_primitive_marker", 1, /*latch=*/true);
     }
 
 private:
