@@ -465,100 +465,100 @@ private:
         pub_primitive_marker_.publish(marker);
     }
     // Maybe all markers could be published on a single topic? would make it cleaner to manage in RViz
-    void publishSphereMarker(const std_msgs::Header& header, const Eigen::Vector3f& center, float radius) {
-        visualization_msgs::Marker marker;
-        marker.header = header;
-        marker.ns = "fitted_sphere";
-        marker.id = 0;
-        marker.type = visualization_msgs::Marker::SPHERE;
-        marker.action = visualization_msgs::Marker::ADD;
+    // void publishSphereMarker(const std_msgs::Header& header, const Eigen::Vector3f& center, float radius) {
+    //     visualization_msgs::Marker marker;
+    //     marker.header = header;
+    //     marker.ns = "fitted_sphere";
+    //     marker.id = 0;
+    //     marker.type = visualization_msgs::Marker::SPHERE;
+    //     marker.action = visualization_msgs::Marker::ADD;
 
-        marker.pose.position.x = center.x();
-        marker.pose.position.y = center.y();
-        marker.pose.position.z = center.z();
-        marker.pose.orientation.x = 0.0;
-        marker.pose.orientation.y = 0.0;
-        marker.pose.orientation.z = 0.0;
-        marker.pose.orientation.w = 1.0;  // orientation irrelevant for a sphere
+    //     marker.pose.position.x = center.x();
+    //     marker.pose.position.y = center.y();
+    //     marker.pose.position.z = center.z();
+    //     marker.pose.orientation.x = 0.0;
+    //     marker.pose.orientation.y = 0.0;
+    //     marker.pose.orientation.z = 0.0;
+    //     marker.pose.orientation.w = 1.0;  // orientation irrelevant for a sphere
 
-        marker.scale.x = 2.0 * radius;
-        marker.scale.y = 2.0 * radius;
-        marker.scale.z = 2.0 * radius;
+    //     marker.scale.x = 2.0 * radius;
+    //     marker.scale.y = 2.0 * radius;
+    //     marker.scale.z = 2.0 * radius;
 
-        marker.color.r = 1.0f;
-        marker.color.g = 0.6f;
-        marker.color.b = 0.0f;
-        marker.color.a = 1.0f;  
+    //     marker.color.r = 1.0f;
+    //     marker.color.g = 0.6f;
+    //     marker.color.b = 0.0f;
+    //     marker.color.a = 1.0f;  
 
-        marker.lifetime = ros::Duration(0.5);  
-        pub_sphere_marker_.publish(marker);
-    }
+    //     marker.lifetime = ros::Duration(0.5);  
+    //     pub_sphere_marker_.publish(marker);
+    // }
 
-    void publishCylinderMarker(const std_msgs::Header& header, const Eigen::Vector3f& center,
-                             const Eigen::Vector3f& axis, float radius, float height) {
-        visualization_msgs::Marker marker;
-        marker.header = header;
-        marker.ns = "fitted_cylinder";
-        marker.id = 0;
-        marker.type = visualization_msgs::Marker::CYLINDER;
-        marker.action = visualization_msgs::Marker::ADD;
+    // void publishCylinderMarker(const std_msgs::Header& header, const Eigen::Vector3f& center,
+    //                          const Eigen::Vector3f& axis, float radius, float height) {
+    //     visualization_msgs::Marker marker;
+    //     marker.header = header;
+    //     marker.ns = "fitted_cylinder";
+    //     marker.id = 0;
+    //     marker.type = visualization_msgs::Marker::CYLINDER;
+    //     marker.action = visualization_msgs::Marker::ADD;
 
-        marker.pose.position.x = center.x();
-        marker.pose.position.y = center.y();
-        marker.pose.position.z = center.z();
+    //     marker.pose.position.x = center.x();
+    //     marker.pose.position.y = center.y();
+    //     marker.pose.position.z = center.z();
 
-        // RViz's CYLINDER marker is aligned with the LOCAL Z axis by default,
-        // so we need a rotation that maps local Z onto our fitted axis direction.
-        Eigen::Vector3f local_z(0.0f, 0.0f, 1.0f);
-        Eigen::Quaternionf q = Eigen::Quaternionf::FromTwoVectors(local_z, axis);
+    //     // RViz's CYLINDER marker is aligned with the LOCAL Z axis by default,
+    //     // so we need a rotation that maps local Z onto our fitted axis direction.
+    //     Eigen::Vector3f local_z(0.0f, 0.0f, 1.0f);
+    //     Eigen::Quaternionf q = Eigen::Quaternionf::FromTwoVectors(local_z, axis);
 
-        marker.pose.orientation.x = q.x();
-        marker.pose.orientation.y = q.y();
-        marker.pose.orientation.z = q.z();
-        marker.pose.orientation.w = q.w();
+    //     marker.pose.orientation.x = q.x();
+    //     marker.pose.orientation.y = q.y();
+    //     marker.pose.orientation.z = q.z();
+    //     marker.pose.orientation.w = q.w();
 
-        marker.scale.x = 2.0 * radius;  
-        marker.scale.y = 2.0 * radius;  
-        marker.scale.z = height;        
+    //     marker.scale.x = 2.0 * radius;  
+    //     marker.scale.y = 2.0 * radius;  
+    //     marker.scale.z = height;        
 
-        marker.color.r = 0.0f;
-        marker.color.g = 0.6f;
-        marker.color.b = 1.0f;
-        marker.color.a = 1.0f;
+    //     marker.color.r = 0.0f;
+    //     marker.color.g = 0.6f;
+    //     marker.color.b = 1.0f;
+    //     marker.color.a = 1.0f;
 
-        marker.lifetime = ros::Duration(0.5);
-        pub_cylinder_marker_.publish(marker);
-    }
+    //     marker.lifetime = ros::Duration(0.5);
+    //     pub_cylinder_marker_.publish(marker);
+    // }
 
-    void publishBoxMarker(const std_msgs::Header& header, const Eigen::Vector3f& center,
-                       const Eigen::Quaternionf& orientation, float width, float thickness, float depth) {
-        visualization_msgs::Marker marker;
-        marker.header = header;
-        marker.ns = "fitted_box";
-        marker.id = 0;
-        marker.type = visualization_msgs::Marker::CUBE;
-        marker.action = visualization_msgs::Marker::ADD;
+    // void publishBoxMarker(const std_msgs::Header& header, const Eigen::Vector3f& center,
+    //                    const Eigen::Quaternionf& orientation, float width, float thickness, float depth) {
+    //     visualization_msgs::Marker marker;
+    //     marker.header = header;
+    //     marker.ns = "fitted_box";
+    //     marker.id = 0;
+    //     marker.type = visualization_msgs::Marker::CUBE;
+    //     marker.action = visualization_msgs::Marker::ADD;
 
-        marker.pose.position.x = center.x();
-        marker.pose.position.y = center.y();
-        marker.pose.position.z = center.z();
-        marker.pose.orientation.x = orientation.x();
-        marker.pose.orientation.y = orientation.y();
-        marker.pose.orientation.z = orientation.z();
-        marker.pose.orientation.w = orientation.w();
+    //     marker.pose.position.x = center.x();
+    //     marker.pose.position.y = center.y();
+    //     marker.pose.position.z = center.z();
+    //     marker.pose.orientation.x = orientation.x();
+    //     marker.pose.orientation.y = orientation.y();
+    //     marker.pose.orientation.z = orientation.z();
+    //     marker.pose.orientation.w = orientation.w();
 
-        marker.scale.x = width;
-        marker.scale.y = depth;
-        marker.scale.z = thickness;
+    //     marker.scale.x = width;
+    //     marker.scale.y = depth;
+    //     marker.scale.z = thickness;
 
-        marker.color.r = 0.2f;
-        marker.color.g = 1.0f;
-        marker.color.b = 0.2f;
-        marker.color.a = 1.0f;
+    //     marker.color.r = 0.2f;
+    //     marker.color.g = 1.0f;
+    //     marker.color.b = 0.2f;
+    //     marker.color.a = 1.0f;
 
-        marker.lifetime = ros::Duration(0.5);
-        pub_box_marker_.publish(marker);
-    }
+    //     marker.lifetime = ros::Duration(0.5);
+    //     pub_box_marker_.publish(marker);
+    // }
 
     void publishAxisMarkers(const std_msgs::Header& header, const Eigen::Vector3f& centroid,
                              Eigen::Vector3f axis[3], float lambda[3]) {
