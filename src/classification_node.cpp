@@ -36,6 +36,7 @@ public:
         pub_sphere_marker_ = nh.advertise<visualization_msgs::Marker>("/perception/sphere_marker", 1);
         pub_cylinder_marker_ = nh.advertise<visualization_msgs::Marker>("/perception/cylinder_marker", 1);
         pub_box_marker_ = nh.advertise<visualization_msgs::Marker>("/perception/box_marker", 1);
+        pub_estimate_ = nh.advertise<your_package::PrimitiveEstimate>("/classification/raw_primitive_estimate", 1);
     }
 
 private:
@@ -45,6 +46,7 @@ private:
     ros::Publisher pub_sphere_marker_;
     ros::Publisher pub_cylinder_marker_;
     ros::Publisher pub_box_marker_;
+    ros::Publisher pub_estimate_;
 
     Eigen::Vector3f table_normal_ = Eigen::Vector3f(0, -1, 0);  // fallback default until first message
     bool have_table_normal_ = false;
@@ -77,6 +79,7 @@ private:
 
         if (cloud->points.empty()) {
             resetClassification();
+            publishRawEstimate(msg->header, false, "UNKNOWN", Eigen::Vector3f::Zero(), Eigen::Quaternionf::Identity());
             return;
         }
 
@@ -120,7 +123,11 @@ private:
             if (fitSphere(cloud, sphere_center, sphere_radius)) {
                 // ---  RViz visualization ---
                 publishSphereMarker(msg->header, sphere_center, sphere_radius);
+                // ---  Publish raw estimate ---
+                publishRawEstimate(msg->header, true, "SPHERE", sphere_center, Eigen::Quaternionf::Identity(),
+                         2.0f * sphere_radius);
             } else {
+                publishRawEstimate(msg->header, false, "SPHERE", Eigen::Vector3f::Zero(), Eigen::Quaternionf::Identity());
                 ROS_WARN("Sphere fit degenerate (invalid radius) - skipping publish this frame.");
             }
         } else if (confirmed_class_ == PrimitiveClass::CYLINDER) {
@@ -129,8 +136,12 @@ private:
 
             if (fitCylinder(cloud, table_normal_, cyl_center, cyl_radius, cyl_height)) {
                 // ---  RViz visualization ---
-                publishCylinderMarker(msg->header, cyl_center, table_normal_, cyl_radius, cyl_height);
+                publishCylinderMarker(msg->header, cyl_center, table_normal_, 2.0f*cyl_radius, cyl_height);
+                // ---  Publish raw estimate ---
+                publishRawEstimate(msg->header, true, "CYLINDER", cyl_center, Eigen::Quaternionf::Identity(),
+                         2.0f * cyl_radius, cyl_height);
             } else {
+                publishRawEstimate(msg->header, false, "CYLINDER", Eigen::Vector3f::Zero(), Eigen::Quaternionf::Identity());
                 ROS_WARN("Cylinder fit degenerate (invalid radius) - skipping publish this frame.");
             }
         } else if (confirmed_class_ == PrimitiveClass::FLAT_BOX) {
@@ -143,11 +154,16 @@ private:
                     box_center, box_orientation, box_width, box_thickness)) {
                 // ---  RViz visualization ---
                 publishBoxMarker(msg->header, box_center, box_orientation, box_width, box_thickness, kAssumedDepth);
+                // ---  Publish raw estimate ---
+                publishRawEstimate(msg->header, true, "FLAT_BOX", box_center, box_orientation,
+                         0.0f, 0.0f, box_width, box_thickness, kAssumedDepth);
             } else {
+                publishRawEstimate(msg->header, false, "FLAT_BOX", Eigen::Vector3f::Zero(), Eigen::Quaternionf::Identity());
                 ROS_WARN("Box fit degenerate - skipping publish this frame.");
             }
+        } else{
+            publishRawEstimate(msg->header, false, "UNKNOWN", Eigen::Vector3f::Zero(), Eigen::Quaternionf::Identity());
         }
-
 
     }
 
@@ -373,6 +389,32 @@ private:
         int idx_high = static_cast<int>(percentile_high * (n - 1));
 
         return {projections[idx_low], projections[idx_high]};
+    }
+
+    void publishRawEstimate(const std_msgs::Header& header, bool valid, const std::string& type,
+                          const Eigen::Vector3f& position, const Eigen::Quaternionf& orientation,
+                          float diameter = 0.0f, float height = 0.0f,
+                          float width = 0.0f, float thickness = 0.0f, float depth = 0.0f) {
+        pcl_package::PrimitiveEstimate msg;
+        msg.primitive_type = type;
+        msg.valid = valid;
+
+        msg.pose.header = header;
+        msg.pose.pose.position.x = position.x();
+        msg.pose.pose.position.y = position.y();
+        msg.pose.pose.position.z = position.z();
+        msg.pose.pose.orientation.x = orientation.x();
+        msg.pose.pose.orientation.y = orientation.y();
+        msg.pose.pose.orientation.z = orientation.z();
+        msg.pose.pose.orientation.w = orientation.w();
+
+        msg.diameter = diameter;
+        msg.height = height;
+        msg.width = width;
+        msg.thickness = thickness;
+        msg.depth = depth;
+
+        pub_estimate_.publish(msg);
     }
 
     void publishSphereMarker(const std_msgs::Header& header, const Eigen::Vector3f& center, float radius) {
