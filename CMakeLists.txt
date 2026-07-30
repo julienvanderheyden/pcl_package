@@ -78,6 +78,7 @@ DEPENDENCIES
 sensor_msgs
 visualization_msgs
 geometry_msgs
+std_msgs
 )
 
 ################################################
