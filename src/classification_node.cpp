@@ -37,6 +37,7 @@ public:
         pub_markers_ = nh.advertise<visualization_msgs::MarkerArray>("/classification/pca_axes", 1);
         pub_sphere_marker_ = nh.advertise<visualization_msgs::Marker>("/perception/sphere_marker", 1);
         pub_cylinder_marker_ = nh.advertise<visualization_msgs::Marker>("/perception/cylinder_marker", 1);
+        pub_box_marker_ = nh.advertise<visualization_msgs::Marker>("/perception/box_marker", 1);
     }
 
 private:
@@ -45,6 +46,7 @@ private:
     ros::Publisher pub_markers_;
     ros::Publisher pub_sphere_marker_;
     ros::Publisher pub_cylinder_marker_;
+    ros::Publisher pub_box_marker_;
 
     Eigen::Vector3f table_normal_ = Eigen::Vector3f(0, -1, 0);  // fallback default until first message
     bool have_table_normal_ = false;
@@ -145,6 +147,22 @@ private:
                         2.0 * cyl_radius, cyl_height, cyl_center.x(), cyl_center.y(), cyl_center.z());
             } else {
                 ROS_WARN("Cylinder fit degenerate (invalid radius) - skipping publish this frame.");
+            }
+        } else if (confirmed_class_ == PrimitiveClass::FLAT_BOX) {
+            Eigen::Vector3f box_center;
+            Eigen::Quaternionf box_orientation;
+            float box_width, box_thickness;
+            const float kAssumedDepth = 0.10f;  // 10cm assumed depth for the occluded axis (not very important for grasping)
+
+            if (fitBox(cloud, table_normal_, axis[0], kAssumedDepth,
+                    box_center, box_orientation, box_width, box_thickness)) {
+
+                publishBoxMarker(msg->header, box_center, box_orientation, box_width, box_thickness, kAssumedDepth);
+                
+                ROS_INFO("FLAT_BOX fit: width=%.4f m, thickness=%.4f m, depth(assumed)=%.4f m, center=[%.3f, %.3f, %.3f]",
+                        box_width, box_thickness, kAssumedDepth, box_center.x(), box_center.y(), box_center.z());
+            } else {
+                ROS_WARN("Box fit degenerate - skipping publish this frame.");
             }
         }
 
@@ -311,6 +329,49 @@ private:
         return true;
     }
 
+    bool fitBox(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
+            const Eigen::Vector3f& normal, const Eigen::Vector3f& largest_axis,
+            float assumed_depth,
+            Eigen::Vector3f& center_out, Eigen::Quaternionf& orientation_out,
+            float& width_out, float& thickness_out) {
+        Eigen::Vector4f centroid4f;
+        pcl::compute3DCentroid(*cloud, centroid4f);
+        Eigen::Vector3f centroid = centroid4f.head<3>();
+
+        // Width direction: largest PCA axis, orthogonalized against the table normal
+        Eigen::Vector3f width_dir = (largest_axis - largest_axis.dot(normal) * normal).normalized();
+        Eigen::Vector3f depth_dir = normal.cross(width_dir).normalized();
+
+        // Orient depth_dir so that POSITIVE = away from camera.
+        if (depth_dir.dot(centroid) < 0.0f) {
+            depth_dir = -depth_dir;
+        }
+
+        auto [thick_low, thick_high] = robustBoundsAlongAxis(cloud, centroid, normal, 0.02, 0.98);
+        thickness_out = thick_high - thick_low;
+
+        auto [width_low, width_high] = robustBoundsAlongAxis(cloud, centroid, width_dir, 0.02, 0.98);
+        width_out = width_high - width_low;
+
+        if (thickness_out <= 0.0f || width_out <= 0.0f) {
+            return false;
+        }
+
+        auto [depth_low, depth_high] = robustBoundsAlongAxis(cloud, centroid, depth_dir, 0.02, 0.98);
+
+        // --- Depth is assumed since it very likely that this axis is occluded and is not very important for the grasping task.
+        float center_offset_along_depth = depth_low + assumed_depth / 2.0f;
+        center_out = centroid + center_offset_along_depth * depth_dir;
+
+        Eigen::Matrix3f rot;
+        rot.col(0) = width_dir;
+        rot.col(1) = depth_dir;
+        rot.col(2) = normal;
+        orientation_out = Eigen::Quaternionf(rot);
+
+        return true;
+    }
+
     // Returns the (low, high) percentile bounds along the axis
     // callers can use the difference for extent/height, and the midpoint for centering.
     std::pair<float, float> robustBounds(std::vector<float>& projections,
@@ -318,6 +379,28 @@ private:
         std::sort(projections.begin(), projections.end());
         int n = projections.size();
 
+        int idx_low = static_cast<int>(percentile_low * (n - 1));
+        int idx_high = static_cast<int>(percentile_high * (n - 1));
+
+        return {projections[idx_low], projections[idx_high]};
+    }
+
+    // Robust (percentile-based) bounds of a point cloud's projection onto an arbitrary axis,
+    // relative to a given reference point. Returns {low, high} along that axis.
+    std::pair<float, float> robustBoundsAlongAxis(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
+                                                    const Eigen::Vector3f& reference,
+                                                    const Eigen::Vector3f& axis,
+                                                    double percentile_low, double percentile_high) {
+        std::vector<float> projections;
+        projections.reserve(cloud->points.size());
+
+        for (const auto& p : cloud->points) {
+            Eigen::Vector3f rel(p.x - reference.x(), p.y - reference.y(), p.z - reference.z());
+            projections.push_back(rel.dot(axis));
+        }
+
+        std::sort(projections.begin(), projections.end());
+        int n = projections.size();
         int idx_low = static_cast<int>(percentile_low * (n - 1));
         int idx_high = static_cast<int>(percentile_high * (n - 1));
 
@@ -390,6 +473,38 @@ private:
         marker.lifetime = ros::Duration(0.5);
 
         pub_cylinder_marker_.publish(marker);
+    }
+
+    void publishBoxMarker(const std_msgs::Header& header, const Eigen::Vector3f& center,
+                       const Eigen::Quaternionf& orientation,
+                       float width, float thickness, float depth) {
+        visualization_msgs::Marker marker;
+        marker.header = header;
+        marker.ns = "fitted_box";
+        marker.id = 0;
+        marker.type = visualization_msgs::Marker::CUBE;
+        marker.action = visualization_msgs::Marker::ADD;
+
+        marker.pose.position.x = center.x();
+        marker.pose.position.y = center.y();
+        marker.pose.position.z = center.z();
+        marker.pose.orientation.x = orientation.x();
+        marker.pose.orientation.y = orientation.y();
+        marker.pose.orientation.z = orientation.z();
+        marker.pose.orientation.w = orientation.w();
+
+        marker.scale.x = width;
+        marker.scale.y = depth;
+        marker.scale.z = thickness;
+
+        marker.color.r = 0.2f;
+        marker.color.g = 1.0f;
+        marker.color.b = 0.2f;
+        marker.color.a = 1.0f;
+
+        marker.lifetime = ros::Duration(0.5);
+
+        pub_box_marker_.publish(marker);
     }
 
     void publishAxisMarkers(const std_msgs::Header& header, const Eigen::Vector3f& centroid,
