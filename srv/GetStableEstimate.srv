@@ -1,0 +1,10 @@
+---
+bool success
+string reason               # populated only if success == false, e.g. "insufficient samples", "scene empty", "unstable"
+string primitive_type
+geometry_msgs/PoseStamped pose
+float64 diameter
+float64 height
+float64 width
+float64 thickness
+float64 depth
