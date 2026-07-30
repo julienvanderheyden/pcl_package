@@ -14,8 +14,6 @@
 #include <Eigen/Dense>
 #include <string>
 
-
-
 enum class PrimitiveClass { UNKNOWN, SPHERE, CYLINDER, FLAT_BOX };
 
 std::string toString(PrimitiveClass c) {
@@ -279,8 +277,8 @@ private:
     }
 
     bool fitCylinder(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
-                  const Eigen::Vector3f& axis,
-                  Eigen::Vector3f& center_out, float& radius_out, float& height_out) {
+                    const Eigen::Vector3f& axis,
+                    Eigen::Vector3f& center_out, float& radius_out, float& height_out) {
         Eigen::Vector4f centroid4f;
         pcl::compute3DCentroid(*cloud, centroid4f);
         Eigen::Vector3f centroid = centroid4f.head<3>();
@@ -292,9 +290,9 @@ private:
         int n = cloud->points.size();
         Eigen::MatrixXf A(n, 3);
         Eigen::VectorXf b(n);
-        std::vector<float> axis_projections;
-        axis_projections.reserve(n);
 
+        // Only need xp, yp here for the radius fit - axis projections are now
+        // handled separately by robustBoundsAlongAxis below.
         for (int i = 0; i < n; ++i) {
             Eigen::Vector3f rel(cloud->points[i].x - centroid.x(),
                                 cloud->points[i].y - centroid.y(),
@@ -306,8 +304,6 @@ private:
             A(i, 1) = 2.0f * yp;
             A(i, 2) = 1.0f;
             b(i) = xp * xp + yp * yp;
-
-            axis_projections.push_back(rel.dot(axis));
         }
 
         Eigen::Vector3f sol = A.colPivHouseholderQr().solve(b);
@@ -320,7 +316,8 @@ private:
 
         radius_out = std::sqrt(r_squared);
 
-        auto [low, high] = robustBounds(axis_projections, 0.02, 0.98);
+        // Reuse the shared helper instead of a hand-rolled loop + robustBounds
+        auto [low, high] = robustBoundsAlongAxis(cloud, centroid, axis, 0.02, 0.98);
         height_out = high - low;
         float mid_axis = (low + high) / 2.0f;
 
@@ -372,19 +369,6 @@ private:
         return true;
     }
 
-    // Returns the (low, high) percentile bounds along the axis
-    // callers can use the difference for extent/height, and the midpoint for centering.
-    std::pair<float, float> robustBounds(std::vector<float>& projections,
-                                        double percentile_low, double percentile_high) {
-        std::sort(projections.begin(), projections.end());
-        int n = projections.size();
-
-        int idx_low = static_cast<int>(percentile_low * (n - 1));
-        int idx_high = static_cast<int>(percentile_high * (n - 1));
-
-        return {projections[idx_low], projections[idx_high]};
-    }
-
     // Robust (percentile-based) bounds of a point cloud's projection onto an arbitrary axis,
     // relative to a given reference point. Returns {low, high} along that axis.
     std::pair<float, float> robustBoundsAlongAxis(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
@@ -423,7 +407,6 @@ private:
         marker.pose.orientation.z = 0.0;
         marker.pose.orientation.w = 1.0;  // orientation irrelevant for a sphere
 
-        // Marker scale = full diameter along each axis (RViz spheres are scaled, not radius-defined)
         marker.scale.x = 2.0 * radius;
         marker.scale.y = 2.0 * radius;
         marker.scale.z = 2.0 * radius;
@@ -431,10 +414,9 @@ private:
         marker.color.r = 1.0f;
         marker.color.g = 0.6f;
         marker.color.b = 0.0f;
-        marker.color.a = 1.0f;  // semi-transparent, so you can see the real point cloud through it
+        marker.color.a = 1.0f;  
 
-        marker.lifetime = ros::Duration(0.5);  // auto-expire, same pattern as your PCA axes
-
+        marker.lifetime = ros::Duration(0.5);  
         pub_sphere_marker_.publish(marker);
     }
 
@@ -461,9 +443,9 @@ private:
         marker.pose.orientation.z = q.z();
         marker.pose.orientation.w = q.w();
 
-        marker.scale.x = 2.0 * radius;  // diameter, x
-        marker.scale.y = 2.0 * radius;  // diameter, y
-        marker.scale.z = height;        // full height along local z
+        marker.scale.x = 2.0 * radius;  
+        marker.scale.y = 2.0 * radius;  
+        marker.scale.z = height;        
 
         marker.color.r = 0.0f;
         marker.color.g = 0.6f;
@@ -471,13 +453,11 @@ private:
         marker.color.a = 1.0f;
 
         marker.lifetime = ros::Duration(0.5);
-
         pub_cylinder_marker_.publish(marker);
     }
 
     void publishBoxMarker(const std_msgs::Header& header, const Eigen::Vector3f& center,
-                       const Eigen::Quaternionf& orientation,
-                       float width, float thickness, float depth) {
+                       const Eigen::Quaternionf& orientation, float width, float thickness, float depth) {
         visualization_msgs::Marker marker;
         marker.header = header;
         marker.ns = "fitted_box";
@@ -503,7 +483,6 @@ private:
         marker.color.a = 1.0f;
 
         marker.lifetime = ros::Duration(0.5);
-
         pub_box_marker_.publish(marker);
     }
 
