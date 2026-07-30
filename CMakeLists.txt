@@ -162,6 +162,7 @@ add_executable(perception_node src/perception_node.cpp)
 # )
 target_link_libraries(segmentation_node ${catkin_LIBRARIES})
 target_link_libraries(classification_node ${catkin_LIBRARIES})
+target_link_libraries(perception_node ${catkin_LIBRARIES})
 
 #############
 ## Install ##
