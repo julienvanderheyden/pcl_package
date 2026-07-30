@@ -140,7 +140,7 @@ private:
                 publishPrimitiveMarker(msg->header, MarkerShape::CYLINDER, cyl_center, cyl_q,
                         Eigen::Vector3f(2.0f * cyl_radius, 2.0f * cyl_radius, cyl_height), 0.0f, 0.6f, 1.0f);
                 // ---  Publish raw estimate ---
-                publishRawEstimate(msg->header, true, "CYLINDER", cyl_center, Eigen::Quaternionf::Identity(),
+                publishRawEstimate(msg->header, true, "CYLINDER", cyl_center, cyl_q,
                          2.0f * cyl_radius, cyl_height);
             } else {
                 publishRawEstimate(msg->header, false, "CYLINDER", Eigen::Vector3f::Zero(), Eigen::Quaternionf::Identity());
