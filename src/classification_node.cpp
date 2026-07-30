@@ -140,7 +140,7 @@ private:
             if (fitCylinder(cloud, table_normal_, cyl_center, cyl_radius, cyl_height)) {
 
                 publishCylinderMarker(msg->header, cyl_center, table_normal_, cyl_radius, cyl_height);
-                
+
                 ROS_INFO("CYLINDER fit: diameter=%.4f m, height=%.4f m, center=[%.3f, %.3f, %.3f]",
                         2.0 * cyl_radius, cyl_height, cyl_center.x(), cyl_center.y(), cyl_center.z());
             } else {
@@ -385,7 +385,7 @@ private:
         marker.color.r = 0.0f;
         marker.color.g = 0.6f;
         marker.color.b = 1.0f;
-        marker.color.a = 0.4f;
+        marker.color.a = 1.0f;
 
         marker.lifetime = ros::Duration(0.5);
 
