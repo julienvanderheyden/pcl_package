@@ -34,9 +34,9 @@ public:
         sub_table_normal_ = nh.subscribe("/segmentation/table_normal", 1,
                                    &PCAClassificationNode::tableNormalCallback, this);
         pub_markers_ = nh.advertise<visualization_msgs::MarkerArray>("/classification/pca_axes", 1);
-        pub_sphere_marker_ = nh.advertise<visualization_msgs::Marker>("/perception/sphere_marker", 1);
-        pub_cylinder_marker_ = nh.advertise<visualization_msgs::Marker>("/perception/cylinder_marker", 1);
-        pub_box_marker_ = nh.advertise<visualization_msgs::Marker>("/perception/box_marker", 1);
+
+        pub_primitive_marker_ = nh.advertise<visualization_msgs::Marker>("/perception/primitive_marker", 1);
+
         pub_estimate_ = nh.advertise<pcl_package::PrimitiveEstimate>("/classification/raw_primitive_estimate", 1);
     }
 
@@ -44,9 +44,7 @@ private:
     ros::Subscriber sub_;
     ros::Subscriber sub_table_normal_;
     ros::Publisher pub_markers_;
-    ros::Publisher pub_sphere_marker_;
-    ros::Publisher pub_cylinder_marker_;
-    ros::Publisher pub_box_marker_;
+    ros::Publisher pub_primitive_marker_;
     ros::Publisher pub_estimate_;
 
     Eigen::Vector3f table_normal_ = Eigen::Vector3f(0, -1, 0);  // fallback default until first message
@@ -123,7 +121,9 @@ private:
 
             if (fitSphere(cloud, sphere_center, sphere_radius)) {
                 // ---  RViz visualization ---
-                publishSphereMarker(msg->header, sphere_center, sphere_radius);
+                //publishSphereMarker(msg->header, sphere_center, sphere_radius);
+                publishPrimitiveMarker(msg->header, MarkerShape::SPHERE, sphere_center, Eigen::Quaternionf::Identity(),
+                        Eigen::Vector3f(2.0f * sphere_radius, 2.0f * sphere_radius, 2.0f * sphere_radius), 1.0f, 0.6f, 0.0f);
                 // ---  Publish raw estimate ---
                 publishRawEstimate(msg->header, true, "SPHERE", sphere_center, Eigen::Quaternionf::Identity(),
                          2.0f * sphere_radius);
@@ -137,7 +137,11 @@ private:
 
             if (fitCylinder(cloud, table_normal_, cyl_center, cyl_radius, cyl_height)) {
                 // ---  RViz visualization ---
-                publishCylinderMarker(msg->header, cyl_center, table_normal_, 2.0f*cyl_radius, cyl_height);
+                //publishCylinderMarker(msg->header, cyl_center, table_normal_, 2.0f*cyl_radius, cyl_height);
+                Eigen::Vector3f local_z(0.0f, 0.0f, 1.0f);
+                Eigen::Quaternionf cyl_q = Eigen::Quaternionf::FromTwoVectors(local_z, table_normal_);
+                publishPrimitiveMarker(msg->header, MarkerShape::CYLINDER, cyl_center, cyl_q,
+                        Eigen::Vector3f(2.0f * cyl_radius, 2.0f * cyl_radius, cyl_height), 0.0f, 0.6f, 1.0f);
                 // ---  Publish raw estimate ---
                 publishRawEstimate(msg->header, true, "CYLINDER", cyl_center, Eigen::Quaternionf::Identity(),
                          2.0f * cyl_radius, cyl_height);
@@ -154,7 +158,9 @@ private:
             if (fitBox(cloud, table_normal_, axis[0], kAssumedDepth,
                     box_center, box_orientation, box_width, box_thickness)) {
                 // ---  RViz visualization ---
-                publishBoxMarker(msg->header, box_center, box_orientation, box_width, box_thickness, kAssumedDepth);
+                // publishBoxMarker(msg->header, box_center, box_orientation, box_width, box_thickness, kAssumedDepth);
+                publishPrimitiveMarker(msg->header, MarkerShape::BOX, box_center, box_orientation,
+                        Eigen::Vector3f(box_width, kAssumedDepth, box_thickness), 0.2f, 1.0f, 0.2f);
                 // ---  Publish raw estimate ---
                 publishRawEstimate(msg->header, true, "FLAT_BOX", box_center, box_orientation,
                          0.0f, 0.0f, box_width, box_thickness, kAssumedDepth);
@@ -418,6 +424,46 @@ private:
         pub_estimate_.publish(msg);
     }
 
+
+    enum class MarkerShape { SPHERE, CYLINDER, BOX };
+
+    // Visualization marker publisher for all three primitive types.
+    void publishPrimitiveMarker(const std_msgs::Header& header, MarkerShape shape,
+                                const Eigen::Vector3f& center, const Eigen::Quaternionf& orientation,
+                                const Eigen::Vector3f& scale,
+                                float r, float g, float b) {
+        visualization_msgs::Marker marker;
+        marker.header = header;
+        marker.ns = "fitted_primitive";
+        marker.id = 0;
+        marker.action = visualization_msgs::Marker::ADD;
+
+        switch (shape) {
+            case MarkerShape::SPHERE:   marker.type = visualization_msgs::Marker::SPHERE;   break;
+            case MarkerShape::CYLINDER: marker.type = visualization_msgs::Marker::CYLINDER; break;
+            case MarkerShape::BOX:      marker.type = visualization_msgs::Marker::CUBE;     break;
+        }
+
+        marker.pose.position.x = center.x();
+        marker.pose.position.y = center.y();
+        marker.pose.position.z = center.z();
+        marker.pose.orientation.x = orientation.x();
+        marker.pose.orientation.y = orientation.y();
+        marker.pose.orientation.z = orientation.z();
+        marker.pose.orientation.w = orientation.w();
+
+        marker.scale.x = scale.x();
+        marker.scale.y = scale.y();
+        marker.scale.z = scale.z();
+
+        marker.color.r = r;
+        marker.color.g = g;
+        marker.color.b = b;
+        marker.color.a = 1.0f;
+
+        marker.lifetime = ros::Duration(0.5);
+        pub_primitive_marker_.publish(marker);
+    }
     // Maybe all markers could be published on a single topic? would make it cleaner to manage in RViz
     void publishSphereMarker(const std_msgs::Header& header, const Eigen::Vector3f& center, float radius) {
         visualization_msgs::Marker marker;
