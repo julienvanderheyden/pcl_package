@@ -51,7 +51,7 @@ private:
     bool have_table_normal_ = false;
 
     // --- Classification thresholds ---
-    double sphere_ratio_threshold_ = 0.65;
+    double sphere_ratio_threshold_ = 0.6;
     double angle_threshold_deg_ = 20.0;
 
     // --- Unified temporal voting state and parameters     ---
