@@ -1,0 +1,31 @@
+<launch>
+    <!-- RealSense camera settings -->
+    <arg name="enable_pointcloud" default="true"/>
+
+    <!-- ArUco marker tracking settings -->
+    <arg name="camera_namespace" default="/camera/color"/>
+    <arg name="dictionary" default="DICT_5X5_50"/>
+    <arg name="camera_frame" default="camera_color_optical_frame"/>
+    <arg name="reference_frame" default="camera_color_optical_frame"/>
+    <arg name="marker_size" default="0.2"/>
+
+    <!-- 1. RealSense driver -->
+    <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+        <arg name="enable_pointcloud" value="$(arg enable_pointcloud)"/>
+    </include>
+
+    <!-- 2. Rectification: produces image_rect_color from image_raw + camera_info,
+         which easy_aruco requires but the RealSense driver doesn't publish directly -->
+    <group ns="camera/color">
+        <node pkg="image_proc" type="image_proc" name="image_proc"/>
+    </group>
+
+    <!-- 3. ArUco marker tracking -->
+    <include file="$(find easy_aruco)/launch/track_aruco_marker.launch">
+        <arg name="camera_namespace" value="$(arg camera_namespace)"/>
+        <arg name="dictionary" value="$(arg dictionary)"/>
+        <arg name="camera_frame" value="$(arg camera_frame)"/>
+        <arg name="reference_frame" value="$(arg reference_frame)"/>
+        <arg name="marker_size" value="$(arg marker_size)"/>
+    </include>
+</launch>
