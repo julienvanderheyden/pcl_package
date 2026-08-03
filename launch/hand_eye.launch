@@ -4,12 +4,12 @@
     <arg name="namespace_prefix" value="easy_handeye"/>
 
     <!-- fill in the following parameters according to your robot's published tf frames -->
-    <arg name="robot_base_frame" value="/ra_base_link"/>
-    <arg name="robot_effector_frame" value="/ra_flange"/>
+    <arg name="robot_base_frame" value="ra_base_link"/>
+    <arg name="robot_effector_frame" value="ra_flange"/>
 
     <!-- fill in the following parameters according to your tracking system's published tf frames -->
-    <arg name="tracking_base_frame" value="/camera_color_optical_frame"/>
-    <arg name="tracking_marker_frame" value="/marker_6"/>
+    <arg name="tracking_base_frame" value="camera_color_optical_frame"/>
+    <arg name="tracking_marker_frame" value="marker_6"/>
 
     <arg name="move_group" value="right_arm"/>
   </include>
