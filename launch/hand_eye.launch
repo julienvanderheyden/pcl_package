@@ -19,6 +19,10 @@
     <arg name="rotation_delta_degrees" value="5.0" />
   </include>
 
+  <!-- Explicitly set parameter on param server just in case -->
+  <param name="/easy_handeye_eye_on_base/move_group" value="right_arm"/>
+  <param name="/easy_handeye_eye_on_base/calibration_mover/move_group" value="right_arm"/>
+
   <!-- <include file="$(find easy_handeye)/launch/publish.launch">
     <arg name="namespace_prefix" value="easy_handeye"/> 
   </include> -->
