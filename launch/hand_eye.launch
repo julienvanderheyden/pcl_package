@@ -13,10 +13,10 @@
 
     <arg name="move_group" value="right_arm"/>
 
-    <!-- Automatic motion parameters (reduces IK reachability failures) -->
+    <!-- Automatic motion parameters -->
     <arg name="freehand_robot_movement" value="false" />
-    <arg name="translation_delta_meters" value="0.001" />
-    <arg name="rotation_delta_degrees" value="0.1" />
+    <arg name="translation_delta_meters" value="0.01" />
+    <arg name="rotation_delta_degrees" value="5.0" />
   </include>
 
   <!-- <include file="$(find easy_handeye)/launch/publish.launch">
