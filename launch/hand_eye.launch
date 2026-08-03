@@ -17,6 +17,7 @@
     <arg name="freehand_robot_movement" value="false" />
     <arg name="translation_delta_meters" value="0.01" />
     <arg name="rotation_delta_degrees" value="5.0" />
+    <arg name="start_rviz" value="false" />
   </include>
 
   <!-- Explicitly set parameter on param server just in case -->
