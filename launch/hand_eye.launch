@@ -15,8 +15,8 @@
 
     <!-- Automatic motion parameters (reduces IK reachability failures) -->
     <arg name="freehand_robot_movement" value="false" />
-    <arg name="translation_delta_m" value="0.04" />
-    <arg name="rotation_delta_deg" value="15.0" />
+    <arg name="translation_delta_meters" value="0.04" />
+    <arg name="rotation_delta_degrees" value="15.0" />
   </include>
 
   <!-- <include file="$(find easy_handeye)/launch/publish.launch">
