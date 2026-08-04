@@ -1,6 +1,7 @@
 <launch>
     <!-- RealSense camera settings -->
     <arg name="enable_pointcloud" default="true"/>
+    <arg name="align_depth" default="true"/>
 
     <!-- ArUco marker tracking settings -->
     <arg name="camera_namespace" default="/camera/color"/>
@@ -12,6 +13,7 @@
     <!-- 1. RealSense driver -->
     <include file="$(find realsense2_camera)/launch/rs_camera.launch">
         <arg name="enable_pointcloud" value="$(arg enable_pointcloud)"/>
+        <arg name="align_depth" value="$(arg align_depth)"/>
     </include>
 
     <!-- 2. Rectification: produces image_rect_color from image_raw + camera_info,
