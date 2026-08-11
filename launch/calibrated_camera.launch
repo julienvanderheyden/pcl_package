@@ -1,0 +1,26 @@
+<launch>
+    <!-- RealSense settings -->
+    <arg name="enable_pointcloud" default="true"/>
+    <arg name="align_depth" default="true"/>
+
+    <!-- Hand-Eye publish settings -->
+    <arg name="eye_on_hand" default="false"/>
+    <arg name="namespace_prefix" default="easy_handeye"/>
+
+    <!-- 1. RealSense Driver -->
+    <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+        <arg name="enable_pointcloud" value="$(arg enable_pointcloud)"/>
+        <arg name="align_depth" value="$(arg align_depth)"/>
+    </include>
+
+    <!-- 2. Image Rectification : Optional, but required for easy_aruco -->
+    <!-- <group ns="camera/color">
+        <node pkg="image_proc" type="image_proc" name="image_proc"/>
+    </group> --> 
+
+    <!-- 3. Publish Saved Hand-Eye Calibration TF -->
+    <include file="$(find easy_handeye)/launch/publish.launch">
+        <arg name="namespace_prefix" value="$(arg namespace_prefix)"/>
+        <arg name="eye_on_hand" value="$(arg eye_on_hand)"/>
+    </include>
+</launch>
