@@ -8,7 +8,7 @@
     <arg name="dictionary" default="DICT_5X5_50"/>
     <arg name="camera_frame" default="camera_color_optical_frame"/>
     <arg name="reference_frame" default="camera_color_optical_frame"/>
-    <arg name="marker_size" default="0.07"/>
+    <arg name="marker_size" default="0.1"/>
 
     <!-- 1. RealSense driver -->
     <include file="$(find realsense2_camera)/launch/rs_camera.launch">
