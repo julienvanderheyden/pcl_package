@@ -186,7 +186,7 @@ class PerceptionNode {
 public:
     PerceptionNode(ros::NodeHandle& nh, ros::NodeHandle& pnh) {
         pnh.param("consensus_leaf_size", leaf_size_, 0.005);   // reuse segmentation node's voxel leaf size if possible
-        pnh.param("consensus_ratio", consensus_ratio_, 0.5);   // fraction of frames a voxel must appear in to survive
+        pnh.param("consensus_ratio", consensus_ratio_, 0.4);   // fraction of frames a voxel must appear in to survive
         pnh.param("sync_slop", sync_slop_, 0.05);               // seconds, approximate-time sync tolerance
 
         estimate_sub_.subscribe(nh, "/classification/raw_primitive_estimate", 1);
