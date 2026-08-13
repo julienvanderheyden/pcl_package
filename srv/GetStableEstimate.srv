@@ -3,3 +3,4 @@ bool success
 string reason               # populated only if success == false, e.g. "insufficient samples", "scene empty", "unstable"
 string primitive_type
 PrimitiveEstimate estimate
+sensor_msgs/PointCloud2 cloud   # temporally-filtered (consensus) segmented cluster cloud, same frame as estimate.pose.header
