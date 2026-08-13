@@ -163,6 +163,25 @@
 #include <set>
 #include <unordered_map>
 
+// PrimitiveEstimate has no top-level `header` field (only pose.header), so the
+// default TimeStamp<M> trait (which reads m.header.stamp) won't compile/sync.
+// This specialization points message_filters at the nested stamp instead.
+// classification_node.cpp sets msg.pose.header from the same
+// /segmentation/object_point_cloud message this node also subscribes to, so
+// the timestamps already line up - this just exposes that to the sync policy.
+namespace ros {
+namespace message_traits {
+
+template <>
+struct TimeStamp<pcl_package::PrimitiveEstimate> {
+    static ros::Time value(const pcl_package::PrimitiveEstimate& m) {
+        return m.pose.header.stamp;
+    }
+};
+
+}  // namespace message_traits
+}  // namespace ros
+
 class PerceptionNode {
 public:
     PerceptionNode(ros::NodeHandle& nh, ros::NodeHandle& pnh) {
