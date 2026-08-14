@@ -53,7 +53,7 @@ private:
 	tf2_ros::TransformListener tf_listener_{tf_buffer_};
 
 	const std::string kRobotFrame_ = "ra_flange";
-	static constexpr double kRobotRadius_ = 0.1;       // m
+	static constexpr double kRobotRadius_ = 0.12;       // m
 	static constexpr double kRobotHeight_ = 0.47;  // m
 	static constexpr double kTfTimeoutSec_ = 0.2;
 
