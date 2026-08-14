@@ -75,8 +75,6 @@
         <arg name="square_number_y" value="$(arg square_number_y)"/>
         <arg name="square_size" value="$(arg square_size)"/>
         <arg name="marker_size" value="$(arg marker_size)"/>
-        <arg name="camera_frame" value="$(arg camera_frame)"/>
-        <arg name="reference_frame" value="$(arg reference_frame)"/>
     </include>
 
     <!-- 4. Easy HandEye Calibration Node -->
