@@ -31,25 +31,25 @@
     </group>
 
     <!-- 3. ArUco Marker Tracking -->
-    <include file="$(find easy_aruco)/launch/track_aruco_marker.launch">
+    <!-- <include file="$(find easy_aruco)/launch/track_aruco_marker.launch">
         <arg name="camera_namespace" value="$(arg camera_namespace)"/>
         <arg name="dictionary" value="$(arg dictionary)"/>
         <arg name="camera_frame" value="$(arg camera_frame)"/>
         <arg name="reference_frame" value="$(arg reference_frame)"/>
         <arg name="marker_size" value="$(arg marker_size)"/>
-    </include>
+    </include> -->
 
     <!-- other option : charuco tracking-->
-    <!-- <include file="$(find easy_aruco)/launch/track_charuco_board.launch">
+    <include file="$(find easy_aruco)/launch/track_charuco_board.launch">
         <arg name="camera_namespace" value="$(arg camera_namespace)"/>
         <arg name="dictionary" value="$(arg dictionary)"/>
         <arg name="camera_frame" value="$(arg camera_frame)"/>
         <arg name="reference_frame" value="$(arg reference_frame)"/>
         <arg name="square_number_x" value="5"/>
         <arg name="square_number_y" value="5"/>
-        <arg name="square_size" value="0.02"
+        <arg name="square_size" value="0.02"/>
         <arg name="marker_size" value="0.014"/>
-    </include> -->
+    </include>
 
     <!-- 4. Easy HandEye Calibration Node -->
     <include file="$(find easy_handeye)/launch/calibrate.launch">
