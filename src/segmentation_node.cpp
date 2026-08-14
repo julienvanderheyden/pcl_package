@@ -18,6 +18,10 @@
 #include <pcl/segmentation/extract_clusters.h>
 #include <pcl/search/kdtree.h>
 
+#include <tf2_ros/transform_listener.h>
+#include <tf2_eigen/tf2_eigen.h>
+#include <Eigen/Geometry>
+
 class SegmentationNode {
 public:
     SegmentationNode(ros::NodeHandle& nh) {
@@ -42,6 +46,17 @@ private:
 	int stand_b_ = 255;
     double color_threshold_ = 175.0;
 
+	// --- Robot self-filtering: model the arm as a cylinder centered on the
+	// ra_flange local x-axis, and drop any point that falls inside it before
+	// clustering, so the robot itself is never mistaken for the object. ---
+	tf2_ros::Buffer tf_buffer_;
+	tf2_ros::TransformListener tf_listener_{tf_buffer_};
+
+	const std::string kRobotFrame_ = "ra_flange";
+	static constexpr double kRobotRadius_ = 0.08;       // m
+	static constexpr double kRobotHeight_ = 0.47;  // m
+	static constexpr double kTfTimeoutSec_ = 0.2;
+
     // --- Temporal smoothing state ---
     bool have_confirmed_ = false;
     Eigen::Vector4f confirmed_centroid_ = Eigen::Vector4f::Zero();
@@ -52,6 +67,40 @@ private:
     static constexpr float kCentroidMatchThreshold = 0.01f;  // [cm] - "same object" tolerance
     static constexpr int kConfirmFramesRequired = 4;         // consecutive mismatched frames before accepting a change
 	static constexpr int kMissingFramesRequired = 10;  // consecutive empty frames before clearing held result
+
+	// --- Robot self-filtering: drop points that fall inside the hand's
+	// bounding cylinder (radius kRobotRadius_,height kRobotHeight_,
+	// axis = local x-axis of ra_flange). 
+	void filterRobotPoints(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input,
+	                        pcl::PointCloud<pcl::PointXYZRGB>::Ptr& output,
+	                        const std_msgs::Header& header) {
+		geometry_msgs::TransformStamped tf_stamped;
+		try {
+			tf_stamped = tf_buffer_.lookupTransform(
+				kRobotFrame_, header.frame_id, ros::Time(0), ros::Duration(kTfTimeoutSec_));
+		} catch (const tf2::TransformException& ex) {
+			ROS_WARN_THROTTLE(1.0, "filterRobotPoints: could not look up %s -> %s (%s); "
+			                        "skipping robot filtering for this frame.",
+			                        header.frame_id.c_str(), kRobotFrame_.c_str(), ex.what());
+			*output = *input;
+			return;
+		}
+
+		const Eigen::Affine3f cloud_to_flange = tf2::transformToEigen(tf_stamped).cast<float>();
+		output->points.clear();
+		output->points.reserve(input->points.size());
+
+		for (const auto& point : input->points) {
+			const Eigen::Vector3f p_flange = cloud_to_flange * Eigen::Vector3f(point.x, point.y, point.z);
+			const float radial = std::sqrt(p_flange.y() * p_flange.y() + p_flange.z() * p_flange.z());
+			const bool inside_robot = (radial <= kRobotRadius_) &&(p_flange.x() <= kRobotHeight_);
+			if (!inside_robot) {output->points.push_back(point);}
+		}
+
+		output->width = output->points.size();
+		output->height = 1;
+		output->is_dense = input->is_dense;
+	}
 
 	// --- Color filtering: remove points whose color is close to a given target ---
     void filterByColor(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input,
@@ -115,12 +164,15 @@ private:
         std::vector<int> nan_indices;
         pcl::removeNaNFromPointCloud(*pcl_cloud, *cloud_no_nan, nan_indices);
 
+		pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_no_robot(new pcl::PointCloud<pcl::PointXYZRGB>);
+		filterRobotPoints(cloud_no_nan, cloud_no_robot, msg->header);
+
 		// Pointer to hold whichever cloud should feed into the Z-pass filter
-		pcl::PointCloud<pcl::PointXYZRGB>::Ptr input_for_z_filter = cloud_no_nan;
+		pcl::PointCloud<pcl::PointXYZRGB>::Ptr input_for_z_filter = cloud_no_robot;
 
 		if (use_color_filter_) {
 			pcl::PointCloud<pcl::PointXYZRGB>::Ptr color_filtered(new pcl::PointCloud<pcl::PointXYZRGB>);
-			filterByColor(cloud_no_nan, color_filtered);
+			filterByColor(cloud_no_robot, color_filtered);
 			input_for_z_filter = color_filtered;
 			sensor_msgs::PointCloud2 debug_msg;
 			pcl::toROSMsg(*color_filtered, debug_msg);
