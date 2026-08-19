@@ -45,12 +45,13 @@ private:
     // int stand_r_= 0;
 	// int stand_g_ = 92 ;
 	// int stand_b_ = 255;
+    // double color_threshold_ = 175.0;
 
     // CARTON BOX
     int stand_r_ = 134;
     int stand_g_ = 102;
     int stand_b_ = 60;
-    double color_threshold_ = 175.0;
+    double color_threshold_ = 100.0;
 
 	// --- Robot self-filtering: model the arm as a cylinder centered on the
 	// ra_flange local x-axis, and drop any point that falls inside it before
