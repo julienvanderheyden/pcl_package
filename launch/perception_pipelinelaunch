@@ -1,0 +1,10 @@
+<launch>
+  <!-- Launch the segmentation node -->
+  <node pkg="pcl_package" type="segmentation_node" name="segmentation_node" output="screen" />
+
+  <!-- Launch the classification node -->
+  <node pkg="pcl_package" type="classification_node" name="classification_node" output="screen" />
+
+  <!-- Launch the perception node -->
+  <node pkg="pcl_package" type="perception_node" name="perception_node" output="screen" />
+</launch>
