@@ -73,11 +73,11 @@ private:
 	const std::string kTableFrame_ = "world";
 	static constexpr double kTableSizeX_ = 0.8;   // m
 	static constexpr double kTableSizeY_ = 1.9;   // m
-	static constexpr double kTableSizeZ_ = 0.72;  // m
+	static constexpr double kTableSizeZ_ = 0.73;  // m
 	static constexpr double kTablePoseX_ = 1.55;  // m
 	static constexpr double kTablePoseY_ = -0.1;  // m
 	static constexpr double kTablePoseZ_ = 0.35;  // m
-	static constexpr double kTableMarginThreshold_ = 0.01;  // m
+	static constexpr double kTableMarginThreshold_ = 0.015;  // m
 
     // --- Temporal smoothing state ---
     bool have_confirmed_ = false;
