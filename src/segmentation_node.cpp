@@ -55,7 +55,7 @@ private:
     int stand_r_ = 209;
     int stand_g_ = 161;
     int stand_b_ = 94;
-    double color_threshold_ = 100.0;
+    double color_threshold_ = 120.0;
 
 	// --- Robot self-filtering: model the arm as a cylinder centered on the
 	// ra_flange local x-axis, and drop any point that falls inside it before
