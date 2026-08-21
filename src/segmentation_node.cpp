@@ -24,6 +24,9 @@
 
 class SegmentationNode {
 public:
+    // How the table plane is obtained.
+    enum class TableMode { RANSAC, HARDCODED };
+
     SegmentationNode(ros::NodeHandle& nh) {
         sub_ = nh.subscribe("/camera/depth/color/points", 1, &SegmentationNode::cloudCallback, this);
         pub_colored_ = nh.advertise<sensor_msgs::PointCloud2>("/segmentation/colored_point_cloud", 1);
@@ -33,6 +36,7 @@ public:
     }
 
 private:
+	ros::NodeHandle nh_private_;
 	// Publishers/subscribers
     ros::Subscriber sub_;
     ros::Publisher pub_colored_;
@@ -48,9 +52,9 @@ private:
     // double color_threshold_ = 175.0;
 
     // CARTON BOX
-    int stand_r_ = 134;
-    int stand_g_ = 102;
-    int stand_b_ = 60;
+    int stand_r_ = 209;
+    int stand_g_ = 161;
+    int stand_b_ = 94;
     double color_threshold_ = 100.0;
 
 	// --- Robot self-filtering: model the arm as a cylinder centered on the
@@ -63,6 +67,17 @@ private:
 	static constexpr double kRobotRadius_ = 0.12;       // m
 	static constexpr double kRobotHeight_ = 0.47;  // m
 	static constexpr double kTfTimeoutSec_ = 0.2;
+
+	// --- Table plane source: RANSAC or hard-coded
+	TableMode table_mode_ = TableMode::HARDCODED;
+	const std::string kTableFrame_ = "world";
+	static constexpr double kTableSizeX_ = 0.8;   // m
+	static constexpr double kTableSizeY_ = 1.9;   // m
+	static constexpr double kTableSizeZ_ = 0.72;  // m
+	static constexpr double kTablePoseX_ = 1.55;  // m
+	static constexpr double kTablePoseY_ = -0.1;  // m
+	static constexpr double kTablePoseZ_ = 0.35;  // m
+	static constexpr double kTableMarginThreshold_ = 0.01;  // m
 
     // --- Temporal smoothing state ---
     bool have_confirmed_ = false;
@@ -107,6 +122,84 @@ private:
 		output->width = output->points.size();
 		output->height = 1;
 		output->is_dense = input->is_dense;
+	}
+
+	// --- Hardcoded table plane: take the top face of the MoveIt scene box
+	// (defined in kTableFrame_), transform its center point and normal into
+	// the cloud frame, and express it as plane coefficients [a,b,c,d] with
+	// a*x + b*y + c*z + d = 0, matching pcl::ModelCoefficients' convention
+	// for SACMODEL_PLANE so downstream code doesn't need to care which mode
+	// produced them. ---
+	bool computeHardcodedTablePlane(const std_msgs::Header& header,
+	                                 const pcl::ModelCoefficients::Ptr& coefficients) {
+		geometry_msgs::TransformStamped tf_stamped;
+		try {
+			tf_stamped = tf_buffer_.lookupTransform(
+				header.frame_id, kTableFrame_, ros::Time(0), ros::Duration(kTfTimeoutSec_));
+		} catch (const tf2::TransformException& ex) {
+			ROS_WARN_THROTTLE(1.0, "computeHardcodedTablePlane: could not look up %s -> %s (%s).",
+			                        kTableFrame_.c_str(), header.frame_id.c_str(), ex.what());
+			return false;
+		}
+
+		const Eigen::Affine3d table_to_cloud = tf2::transformToEigen(tf_stamped);
+
+		// Center of the box's top face and its outward normal, in the table frame.
+		const Eigen::Vector3d point_on_plane_table(kTablePoseX_, kTablePoseY_,
+		                                            kTablePoseZ_ + kTableSizeZ_ / 2.0);
+		const Eigen::Vector3d normal_table(0.0, 0.0, 1.0);
+
+		const Eigen::Vector3d point_on_plane = table_to_cloud * point_on_plane_table;
+		const Eigen::Vector3d normal = table_to_cloud.rotation() * normal_table;
+		const double d = -normal.dot(point_on_plane);
+
+		coefficients->values.resize(4);
+		coefficients->values[0] = static_cast<float>(normal.x());
+		coefficients->values[1] = static_cast<float>(normal.y());
+		coefficients->values[2] = static_cast<float>(normal.z());
+		coefficients->values[3] = static_cast<float>(d);
+		return true;
+	}
+
+	// --- Hardcoded table box removal: unlike computeHardcodedTablePlane
+	// (which only gives the top-face plane, used for the published table
+	// normal), this treats the MoveIt scene box as a full 3D volume and
+	// flags every cloud point that falls inside it (side faces included),
+	// inflated by kTableMarginThreshold_ on every face to absorb noise. ---
+	bool computeHardcodedTableBoxIndices(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
+	                                      const std_msgs::Header& header,
+	                                      const pcl::PointIndices::Ptr& indices) {
+		geometry_msgs::TransformStamped tf_stamped;
+		try {
+			tf_stamped = tf_buffer_.lookupTransform(
+				kTableFrame_, header.frame_id, ros::Time(0), ros::Duration(kTfTimeoutSec_));
+		} catch (const tf2::TransformException& ex) {
+			ROS_WARN_THROTTLE(1.0, "computeHardcodedTableBoxIndices: could not look up %s -> %s (%s).",
+			                        header.frame_id.c_str(), kTableFrame_.c_str(), ex.what());
+			return false;
+		}
+
+		const Eigen::Affine3f cloud_to_table = tf2::transformToEigen(tf_stamped).cast<float>();
+		const float margin = static_cast<float>(kTableMarginThreshold_);
+
+		const float x_min = static_cast<float>(kTablePoseX_ - kTableSizeX_ / 2.0) - margin;
+		const float x_max = static_cast<float>(kTablePoseX_ + kTableSizeX_ / 2.0) + margin;
+		const float y_min = static_cast<float>(kTablePoseY_ - kTableSizeY_ / 2.0) - margin;
+		const float y_max = static_cast<float>(kTablePoseY_ + kTableSizeY_ / 2.0) + margin;
+		const float z_min = static_cast<float>(kTablePoseZ_ - kTableSizeZ_ / 2.0) - margin;
+		const float z_max = static_cast<float>(kTablePoseZ_ + kTableSizeZ_ / 2.0) + margin;
+
+		indices->indices.clear();
+		indices->indices.reserve(cloud->points.size());
+		for (size_t i = 0; i < cloud->points.size(); ++i) {
+			const auto& p = cloud->points[i];
+			const Eigen::Vector3f p_table = cloud_to_table * Eigen::Vector3f(p.x, p.y, p.z);
+			const bool inside_box = (p_table.x() >= x_min && p_table.x() <= x_max &&
+			                          p_table.y() >= y_min && p_table.y() <= y_max &&
+			                          p_table.z() >= z_min && p_table.z() <= z_max);
+			if (inside_box) { indices->indices.push_back(static_cast<int>(i)); }
+		}
+		return true;
 	}
 
 	// --- Color filtering: remove points whose color is close to a given target ---
@@ -209,18 +302,34 @@ private:
 
         pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
         pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
-        pcl::SACSegmentation<pcl::PointXYZRGB> seg;
-        seg.setOptimizeCoefficients(true);
-        seg.setModelType(pcl::SACMODEL_PLANE);
-        seg.setMethodType(pcl::SAC_RANSAC);
-        seg.setDistanceThreshold(0.01);
-        seg.setInputCloud(voxel_filtered);
-        seg.segment(*inliers, *coefficients);
 
-        if (inliers->indices.empty()) {
-			handleMissingDetection(msg->header, "No plane found.");
-			return;
-		}
+        if (table_mode_ == TableMode::HARDCODED) {
+            if (!computeHardcodedTablePlane(msg->header, coefficients)) {
+                handleMissingDetection(msg->header, "Hardcoded table plane unavailable (TF lookup failed).");
+                return;
+            }
+            // Remove every point inside the table's 3D box (not just near its
+            // top face), so the side faces are cleaned up too. An empty result
+            // here is not an error - it just means no cloud points happen to
+            // fall inside the box this frame - so we don't gate on it.
+            if (!computeHardcodedTableBoxIndices(voxel_filtered, msg->header, inliers)) {
+                handleMissingDetection(msg->header, "Hardcoded table box unavailable (TF lookup failed).");
+                return;
+            }
+        } else {
+            pcl::SACSegmentation<pcl::PointXYZRGB> seg;
+            seg.setOptimizeCoefficients(true);
+            seg.setModelType(pcl::SACMODEL_PLANE);
+            seg.setMethodType(pcl::SAC_RANSAC);
+            seg.setDistanceThreshold(0.01);
+            seg.setInputCloud(voxel_filtered);
+            seg.segment(*inliers, *coefficients);
+
+            if (inliers->indices.empty()) {
+                handleMissingDetection(msg->header, "No plane found.");
+                return;
+            }
+        }
 
 		// --- Publish the table normal, derived directly from the plane fit ---
 		Eigen::Vector3f normal(coefficients->values[0], coefficients->values[1], coefficients->values[2]);

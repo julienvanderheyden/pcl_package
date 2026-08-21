@@ -345,6 +345,7 @@ private:
         // Orient depth_dir so that POSITIVE = away from camera.
         if (depth_dir.dot(centroid) < 0.0f) {
             depth_dir = -depth_dir;
+            width_dir = -width_dir;  // maintain right-handed frame
         }
 
         auto [thick_low, thick_high] = robustBoundsAlongAxis(cloud, centroid, normal, 0.02, 0.98);
