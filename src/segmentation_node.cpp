@@ -22,6 +22,9 @@
 #include <tf2_eigen/tf2_eigen.h>
 #include <Eigen/Geometry>
 
+#include <string>
+#include <vector>
+
 class SegmentationNode {
 public:
     // How the table plane is obtained.
@@ -45,17 +48,23 @@ private:
 	ros::Publisher pub_table_normal_;
 	// Color filter params
 	bool use_color_filter_ = true;
-    // BLUE JLCPB BOX
-    // int stand_r_= 0;
-	// int stand_g_ = 92 ;
-	// int stand_b_ = 255;
-    // double color_threshold_ = 175.0;
 
-    // CARTON BOX
-    int stand_r_ = 209;
-    int stand_g_ = 161;
-    int stand_b_ = 94;
-    double color_threshold_ = 140.0;
+	// --- Colors to filter out (e.g. the stand/background the object sits
+	// on). A point is dropped if it falls within ANY entry's threshold of
+	// that entry's RGB target - add or remove entries as needed. ---
+	struct StandColor {
+		std::string name;
+		int r;
+		int g;
+		int b;
+		double threshold;
+	};
+
+	std::vector<StandColor> stand_colors_ = {
+		{"carton box brown", 209, 161, 94, 150.0},
+        {"table white", 234, 225, 239, 70.0},
+		// {"blue JLCPB box", 0, 92, 255, 175.0},
+	};
 
 	// --- Robot self-filtering: model the arm as a cylinder centered on the
 	// ra_flange local x-axis, and drop any point that falls inside it before
@@ -73,7 +82,7 @@ private:
 	const std::string kTableFrame_ = "world";
 	static constexpr double kTableSizeX_ = 0.8;   // m
 	static constexpr double kTableSizeY_ = 1.9;   // m
-	static constexpr double kTableSizeZ_ = 0.73;  // m
+	static constexpr double kTableSizeZ_ = 0.74;  // m
 	static constexpr double kTablePoseX_ = 1.55;  // m
 	static constexpr double kTablePoseY_ = -0.1;  // m
 	static constexpr double kTablePoseZ_ = 0.35;  // m
@@ -202,24 +211,33 @@ private:
 		return true;
 	}
 
-	// --- Color filtering: remove points whose color is close to a given target ---
+	// --- Color filtering: remove points close to any configured stand color ---
     void filterByColor(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input,
                         pcl::PointCloud<pcl::PointXYZRGB>::Ptr& output) {
         output->points.clear();
         output->points.reserve(input->points.size());
 
         for (const auto& point : input->points) {
-            float dr = static_cast<float>(point.r) - stand_r_;
-            float dg = static_cast<float>(point.g) - stand_g_;
-            float db = static_cast<float>(point.b) - stand_b_;
-            double dist = std::sqrt(dr * dr + dg * dg + db * db);
-			//ROS_INFO("Point color: (%d, %d, %d), distance to target: %.2f", point.r, point.g, point.b, dist);
+            bool matches_a_stand_color = false;
+            for (const auto& stand : stand_colors_) {
+                const float dr = static_cast<float>(point.r) - stand.r;
+                const float dg = static_cast<float>(point.g) - stand.g;
+                const float db = static_cast<float>(point.b) - stand.b;
+                const double dist = std::sqrt(dr * dr + dg * dg + db * db);
+				//ROS_INFO("Point color: (%d, %d, %d), distance to '%s': %.2f",
+				//         point.r, point.g, point.b, stand.name.c_str(), dist);
 
-            if (dist >= color_threshold_) {
-                // Color is far enough from the target - keep this point
+                if (dist < stand.threshold) {
+                    // Close enough to this stand color - drop the point.
+                    matches_a_stand_color = true;
+                    break;
+                }
+            }
+
+            if (!matches_a_stand_color) {
+                // Far from every configured stand color - keep this point.
                 output->points.push_back(point);
             }
-            // else: too close to target color (likely the stand) - drop it
         }
 
         output->width = output->points.size();
