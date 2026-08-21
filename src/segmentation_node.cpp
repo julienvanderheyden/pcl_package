@@ -80,7 +80,7 @@ private:
 	// --- Table plane source: RANSAC or hard-coded
 	TableMode table_mode_ = TableMode::HARDCODED;
 	const std::string kTableFrame_ = "world";
-	static constexpr double kTableSizeX_ = 0.8;   // m
+	static constexpr double kTableSizeX_ = 0.85;   // m
 	static constexpr double kTableSizeY_ = 1.9;   // m
 	static constexpr double kTableSizeZ_ = 0.74;  // m
 	static constexpr double kTablePoseX_ = 1.55;  // m
