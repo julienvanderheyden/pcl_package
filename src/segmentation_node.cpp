@@ -302,7 +302,7 @@ private:
         pcl::PassThrough<pcl::PointXYZRGB> pass_z;
         pass_z.setInputCloud(input_for_z_filter);
         pass_z.setFilterFieldName("z");
-        pass_z.setFilterLimits(0.25, 1.0);
+        pass_z.setFilterLimits(0.25, 1.5);
         pass_z.filter(*z_filtered);
 
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr x_filtered(new pcl::PointCloud<pcl::PointXYZRGB>);
