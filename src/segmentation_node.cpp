@@ -1,6 +1,7 @@
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <geometry_msgs/Vector3Stamped.h>
+#include <std_srvs/SetBool.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -30,22 +31,39 @@ public:
     // How the table plane is obtained.
     enum class TableMode { RANSAC, HARDCODED };
 
-    SegmentationNode(ros::NodeHandle& nh) {
-        sub_ = nh.subscribe("/camera/depth/color/points", 1, &SegmentationNode::cloudCallback, this);
+    SegmentationNode(ros::NodeHandle& nh) : nh_(nh) {
+        sub_ = nh_.subscribe("/camera/depth/color/points", 1, &SegmentationNode::cloudCallback, this);
         pub_colored_ = nh.advertise<sensor_msgs::PointCloud2>("/segmentation/colored_point_cloud", 1);
         pub_largest_ = nh.advertise<sensor_msgs::PointCloud2>("/segmentation/object_point_cloud", 1);
 		pub_debug_ = nh.advertise<sensor_msgs::PointCloud2>("/segmentation/debug_point_cloud", 1);
 		pub_table_normal_ = nh.advertise<geometry_msgs::Vector3Stamped>("/segmentation/table_normal", 1);
+
+		// Pause/resume the whole pipeline on demand (e.g. from the grasping
+		// orchestrator once it has committed to an object and no longer
+		// needs fresh perception). Deactivating fully unsubscribes from the
+		// cloud topic so cloudCallback stops being invoked at all, rather
+		// than gating computation with an internal flag - the point is to
+		// stop the work, not just stop publishing its result.
+		set_active_srv_ = nh.advertiseService(
+			"/segmentation/set_active", &SegmentationNode::setActiveCallback, this);
     }
 
 private:
-	ros::NodeHandle nh_private_;
+	// Persistent handle used to (re)subscribe from the service callback.
+	ros::NodeHandle nh_;
 	// Publishers/subscribers
     ros::Subscriber sub_;
     ros::Publisher pub_colored_;
     ros::Publisher pub_largest_;
     ros::Publisher pub_debug_;
 	ros::Publisher pub_table_normal_;
+	ros::ServiceServer set_active_srv_;
+
+	// --- Pause/resume state ---
+	// True while subscribed to the cloud topic and actively segmenting.
+	bool is_active_ = true;
+	static constexpr const char* kCloudTopic_ = "/camera/depth/color/points";
+
 	// Color filter params
 	bool use_color_filter_ = true;
 
@@ -245,6 +263,37 @@ private:
         output->is_dense = input->is_dense;
     }
 
+	// --- /segmentation/set_active service callback ---
+	// data=false (pause): unsubscribe from the cloud topic so cloudCallback
+	//   is never invoked - no NaN removal, no filtering, no clustering, no
+	//   PCL work of any kind happens while paused.
+	// data=true (resume): resubscribe, and clear temporal-smoothing state
+	//   so we don't republish a stale held cluster from before the pause -
+	//   the scene may well have changed (e.g. the arm now occludes it).
+	bool setActiveCallback(std_srvs::SetBool::Request& req, std_srvs::SetBool::Response& res) {
+		if (req.data) {
+			if (!is_active_) {
+				ROS_INFO("segmentation_node: activating - resubscribing to %s.", kCloudTopic_);
+				have_confirmed_ = false;
+				confirmed_cluster_->points.clear();
+				mismatch_count_ = 0;
+				missing_count_ = 0;
+				sub_ = nh_.subscribe(kCloudTopic_, 1, &SegmentationNode::cloudCallback, this);
+				is_active_ = true;
+			}
+			res.message = "segmentation pipeline active";
+		} else {
+			if (is_active_) {
+				ROS_INFO("segmentation_node: deactivating - unsubscribing from %s.", kCloudTopic_);
+				sub_.shutdown();
+				is_active_ = false;
+			}
+			res.message = "segmentation pipeline paused";
+		}
+		res.success = true;
+		return true;
+	}
+
 	void handleMissingDetection(const std_msgs::Header& header, const std::string& reason) {
 		missing_count_++;
 		ROS_WARN_THROTTLE(1.0, "%s (missing %d/%d)", reason.c_str(), missing_count_, kMissingFramesRequired);
@@ -275,6 +324,14 @@ private:
 	}
 
     void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
+        if (!is_active_) {
+            // Belt-and-braces: sub_.shutdown() in setActiveCallback should
+            // prevent this callback from firing at all, but bail out
+            // immediately if a message was already in flight when we
+            // unsubscribed, rather than doing the full segmentation pass.
+            return;
+        }
+
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
         pcl::fromROSMsg(*msg, *pcl_cloud);
 
