@@ -80,8 +80,8 @@ private:
 
 	std::vector<StandColor> stand_colors_ = {
 		//{"carton box brown", 209, 161, 94, 180.0},
-        {"table white", 234, 225, 239, 120.0},
-		{"shadows", 148, 114, 101, 100.0},
+        //{"table white", 234, 225, 239, 120.0},
+		//{"shadows", 148, 114, 101, 100.0},
 		// {"blue JLCPB box", 0, 92, 255, 175.0},
 	};
 
